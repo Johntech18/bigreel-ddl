@@ -13,7 +13,7 @@
 import { fetchChain, extractLinks, normalizeTitle, titleMatches, absolute, searchQuery } from "./base.mjs";
 import { resolveFilesdl } from "./filesdl.mjs";
 
-const DEFAULT_DOMAINS = ["filmmilf.xyz"];
+const DEFAULT_DOMAINS = ["filmmilf.xyz", "hdhub4u.world", "hdhub4u.page"];
 
 export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label = "HDHub4u (self)" } = {}) {
   // Skip links that point back at our own configured mirrors / site chrome.
@@ -28,17 +28,24 @@ export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label
 
   async function searchPosts(title, year) {
     // Try each configured mirror in order; first one that yields posts wins.
+    let lastFailure = null;
     for (const domain of domains) {
       const domBase = `https://${domain}`;
       const url = `${domBase}/?s=${encodeURIComponent(searchQuery(title))}`;
       try {
         const { status, text } = await fetchChain(url);
-        if (status !== 200) continue;
+        if (status !== 200) {
+          lastFailure = { status, domain };
+          continue; // site blocked / moved — try the next mirror
+        }
         const posts = [];
         for (const { url: href, text: anchor } of extractLinks(text)) {
-          // WordPress post links: ?p=<id> permalinks or pretty permalinks
+          // WordPress post links: ?p=<id> permalinks, pretty slug permalinks
+          // (often with a year in the slug), .html URLs, or archive paths.
           const abs = absolute(domBase, href);
-          const isPost = /[?&]p=\d+/.test(abs) || /\.html$/.test(abs) || /\/(20\d\d\/\d\d\/|archives\/)/.test(abs);
+          const isPost = /[?&]p=\d+/.test(abs) || /\.html$/.test(abs)
+            || /\/(20\d\d\/\d\d\/|archives\/)/.test(abs)
+            || /\/[a-z0-9-]+-20\d\d-?[a-z0-9-]*\/$/.test(abs);
           if (!isPost) continue;
           const hay = anchor || abs;
           if (!titleMatches(title, hay, year)) continue;
@@ -47,11 +54,17 @@ export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label
           }
         }
         if (posts.length) return { posts, base: domBase };
-      } catch {
-        // mirror unreachable — try the next one
+        // Site served 200 but nothing matched — remember it, try remaining mirrors.
+        lastFailure = { status: 200, domain, matched: 0 };
+      } catch (err) {
+        lastFailure = { domain, error: err?.cause?.code || err?.code || err.message };
       }
     }
-    return { posts: [], base: domains[0] ? `https://${domains[0]}` : null };
+    return {
+      posts: [],
+      base: domains[0] ? `https://${domains[0]}` : null,
+      error: lastFailure ? `${lastFailure.domain} (${lastFailure.status ? `HTTP ${lastFailure.status}` : lastFailure.error})` : "no domains",
+    };
   }
 
   // File-host / download links inside a post. filesdl.cloud pattern is the

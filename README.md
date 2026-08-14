@@ -238,6 +238,28 @@ Each source object looks like:
 }
 ```
 
+## Deploy to Vercel
+
+The repo is Vercel-ready: `api/index.mjs` re-exports the exact same request
+handler as the standalone server, and `vercel.json` rewrites every route
+(`/dl/*`, `/find`, `/api/*`, …) to that single serverless function. The
+in-memory cache and session jars work per instance, so nothing needs external
+state.
+
+1. Push this folder to a Git repo (or use `vercel --cwd .` from the folder).
+2. Log in: `vercel login`
+3. Set env vars in the Vercel dashboard (Settings → Environment Variables)
+   — at minimum `TMDB_API_KEY` (free, themoviedb.org). Optional: `FLARESOLVERR_URL`,
+   `FZMOVIES_DOMAINS`, `FZMOVIES_TV_DOMAINS`, `FILMYFLY_DOMAINS`, `HDHUB4U_DOMAINS`,
+   `A111477_DOMAINS`.
+4. `vercel --prod`
+
+Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
+60 s in `vercel.json` (the Hobby-plan ceiling — bump it to 300 on Pro).
+
+> Note: the standalone server stays fully supported — `node server.mjs` — the
+> handler is shared, so the deployed behavior matches local.
+
 ## Configuration (env vars)
 
 | Var | Default | Purpose |
@@ -250,7 +272,7 @@ Each source object looks like:
 | `TMDB_API_KEY` | — | Free key from themoviedb.org; enables `/api/search`, `/api/find`, and tmdbId → title resolution |
 | `FLARESOLVERR_URL` | — | Optional; URL of a running flaresolverr, used to unlock Cloudflare-challenged file hosts (filesdl) |
 | `FILMYFLY_DOMAINS` | `filmsay.com` | Comma-separated mirror domains for the filmyfly scraper; tries each in order |
-| `HDHUB4U_DOMAINS` | `filmmilf.xyz` | Comma-separated mirror domains for the hdhub4u scraper; tries each in order |
+| `HDHUB4U_DOMAINS` | `filmmilf.xyz,hdhub4u.world,hdhub4u.page` | Comma-separated mirror domains for the hdhub4u scraper; tries each in order |
 | `A111477_DOMAINS` | `a.111477.xyz` | Domain(s) for the static file indexer provider |
 | `FZMOVIES_DOMAINS` | `fzmovies.xyz,fzmovies.live,fzmovies.host` | Mirror domains for the fzmovies movie provider; tries each in order |
 | `FZMOVIES_TV_DOMAINS` | `mobiletvshows.site,fztvseries.live` | Mirror domains for the fzmovies TV provider (FzTVseries) |
