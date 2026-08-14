@@ -1,24 +1,33 @@
-// server.mjs — direct-download server that aggregates links from nxsha.app.
+// server.mjs — direct-download server.
 //
-// Routes (mirror nxsha's own URL scheme, plus a plain JSON API):
-//   GET /dl/movie/:tmdbId                  HTML page with download links
-//   GET /dl/tv/:tmdbId/:season/:episode    HTML page with download links
-//   GET /api/dl/movie/:tmdbId              JSON: links from all providers
-//   GET /api/dl/tv/:tmdbId/:season/:episode  JSON: links from all providers
-//   GET /api/servers?type=&tmdbId=&season=&episode=   JSON proxy (decrypted)
-//   GET /api/sources?provider=&type=&tmdbId=&season=&episode=  JSON proxy
-//   GET /healthz
+// Two independent backends:
+//   A) nxsha.app proxy (mirrors their URL scheme):
+//      GET /dl/movie/:tmdbId | /dl/tv/:tmdbId/:s/:e  (HTML)
+//      GET /api/dl/movie/:tmdbId | /api/dl/tv/...     (JSON)
+//      GET /api/servers | /api/sources                (decrypted JSON proxy)
+//   B) self-hosted scrapers (own modules, no nxsha):
+//      GET /scrape/movie/:tmdbId?title=&year=         (HTML)
+//      GET /scrape/tv/:tmdbId/:s/:e?title=&year=      (HTML)
+//      GET /api/scrape/movie/:tmdbId?title=&year=     (JSON)
+//      GET /api/scrape/tv/:tmdbId/:s/:e?title=&year=  (JSON)
+//
+// For (B), pass title/year as query params, or set TMDB_API_KEY so tmdbId is
+// resolved to a title automatically.
 //
 // Zero dependencies: node:http + the built-in fetch (Node 18+).
 
 import http from "node:http";
+import { pathToFileURL } from "node:url";
 import { getServers, getSources, getDirectLinks } from "./nxsha.mjs";
+import { scrapeMovie, scrapeEpisode, tmdbSearch, findAndScrapeMerged } from "./scrapers/index.mjs";
 
 const PORT = Number(process.env.PORT || 3000);
-const HOST = process.env.HOST || "bigreel-ddl.vercel.app";
+const HOST = process.env.HOST || "127.0.0.1";
 
 // --- tiny TTL cache so repeated page loads don't hammer the upstream ----------
 const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MS || 60_000);
+// /api/find scrapes every provider (~10-30 s), so it caches much longer.
+const FIND_CACHE_TTL_MS = Number(process.env.FIND_CACHE_TTL_MS || 5 * 60_000);
 const cache = new Map(); // key -> { expiresAt, data }
 
 function cached(key, ttlMs, loader) {
@@ -83,6 +92,8 @@ const html = (title, body) => `<!DOCTYPE html>
   .server[open] summary .chev { transform: rotate(180deg); }
   .badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.25); }
   .badge.err { background: rgba(239,68,68,.1); color: #f87171; border-color: rgba(239,68,68,.25); }
+  .badge.srctx { background: rgba(59,130,246,.12); color: #60a5fa; border-color: rgba(59,130,246,.3); }
+  .badge.srcself { background: rgba(34,197,94,.12); color: #4ade80; border-color: rgba(34,197,94,.3); }
   .src { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.04); }
   .src .q { font-size: 13px; color: #e4e4e7; }
   .src .meta { font-size: 11px; color: #71717a; margin-top: 2px; }
@@ -99,25 +110,41 @@ ${body}
 </body>
 </html>`;
 
-const pageHtml = ({ title, apiUrl }) => html(
+const pageHtml = ({ title, apiUrl, data: initialData, error: initialError }) => html(
   `Direct Download — ${title}`,
   `<main>
   <header><span class="logo"></span><div><h1>${title}</h1><div class="sub">Direct download links · aggregated</div></div></header>
   <div id="app" class="loading">Fetching sources…</div>
   <div class="disclaimer">This tool is an indexer: it aggregates links to content hosted by third parties. It does not host or store any media files.</div>
   <script>
+    const INITIAL = ${JSON.stringify(initialData || null)};
+    const INITIAL_ERROR = ${JSON.stringify(initialError || null)};
     (async () => {
       const app = document.getElementById("app");
       try {
-        const res = await fetch(${JSON.stringify(apiUrl)});
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const data = await res.json();
-        const withSources = data.servers.filter(s => s.sources.length || s.error);
+        let data = INITIAL;
+        if (!data) {
+          const res = await fetch(${JSON.stringify(apiUrl)});
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          data = await res.json();
+        }
+        if (INITIAL_ERROR || data.error) {
+          app.className = "err";
+          app.textContent = INITIAL_ERROR || data.error;
+          return;
+        }
+        let servers = data.servers || null;
+        if (!servers && data.providers) {
+          servers = data.providers.map(function (p) {
+            return { server: { name: (p.name || p.provider) + (p.post ? " · " + p.post : "") }, provider: p.provider, sources: p.sources || [], error: p.error || null, source: p.source || "self" };
+          });
+        }
+        const withSources = (servers || []).filter(s => s.sources.length || s.error);
         if (!withSources.length) { app.className = "empty"; app.textContent = "No download links found for this title."; return; }
         app.className = "";
         app.innerHTML = withSources.map(s => \`
           <details class="server" open>
-            <summary><span class="badge">\${s.sources.length || "0"} links</span> \${escapeHtml(s.server.name || s.provider)}<span class="chev">▾</span></summary>
+            <summary><span class="badge">\${s.sources.length || "0"} links</span> \${s.source ? \`<span class="badge \${s.source === "nxsha" ? "srctx" : "srcself"}">\${s.source}</span>\` : ""} \${escapeHtml(s.server.name || s.provider)}<span class="chev">▾</span></summary>
             \${s.error ? \`<div class="empty">\${escapeHtml(s.error)}</div>\` : ""}
             \${s.sources.map(x => \`
               <div class="src">
@@ -137,9 +164,26 @@ const pageHtml = ({ title, apiUrl }) => html(
   </main>`
 );
 
+const searchPageHtml = () => html(
+  "Search",
+  `<main>
+  <header><span class="logo"></span><div><h1>Search</h1><div class="sub">Find a title on TMDB, then scrape direct links</div></div></header>
+  <form method="get" action="/find" style="display:flex;gap:10px;margin:8px 0 20px">
+    <input type="text" name="q" placeholder="Movie or show name…" autofocus
+      style="flex:1;background:#111;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:12px 14px;color:#f4f4f5;font-size:15px"/>
+    <input type="number" name="season" placeholder="S" min="1" style="width:64px;background:#111;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:12px;color:#f4f4f5;font-size:15px"/>
+    <input type="number" name="episode" placeholder="E" min="1" style="width:64px;background:#111;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:12px;color:#f4f4f5;font-size:15px"/>
+    <button type="submit" style="background:#f59e0b;border:0;color:#000;font-weight:700;padding:0 22px;border-radius:10px;cursor:pointer">Search</button>
+  </form>
+  <p style="color:#71717a;font-size:12px">Enter a title and hit Search. TV shows need season/episode numbers. Requires <code>TMDB_API_KEY</code>.</p>
+  </main>`
+);
+
 // --- routing ------------------------------------------------------------------
 
-const server = http.createServer(async (req, res) => {
+// Exported so both the standalone server below and the Vercel serverless
+// function (api/index.mjs) share one request handler.
+export async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const path = url.pathname;
   const m = path.match(/^\/(?:api\/)?dl\/(movie|tv)\/([^/]+)(?:\/(\d+)\/(\d+))?$/);
@@ -153,10 +197,12 @@ const server = http.createServer(async (req, res) => {
           <header><span class="logo"></span><div><h1>nxsha-dl-server</h1><div class="sub">Direct download link aggregator for nxsha.app</div></div></header>
           <p style="color:#a1a1aa;font-size:14px;line-height:1.7">Try a title:</p>
           <ul style="color:#d4d4d8;font-size:14px;line-height:2">
+            <li><a href="/find" style="color:#fbbf24">Search by name · /find?q=…</a></li>
             <li><a href="/dl/movie/969681" style="color:#fbbf24">Movie · /dl/movie/{tmdb_id}</a></li>
             <li><a href="/dl/tv/1396/1/1" style="color:#fbbf24">TV · /dl/tv/{tmdb_id}/{season}/{episode}</a></li>
+            <li><a href="/scrape/movie/969681?title=Spider-Man:%20Brand%20New%20Day&year=2026" style="color:#fbbf24">Self-scrape · /scrape/movie/{tmdb_id}</a></li>
           </ul>
-          <p style="color:#71717a;font-size:12px;margin-top:32px">JSON API: /api/dl/movie/{tmdb_id} · /api/dl/tv/{tmdb_id}/{s}/{e}</p>
+          <p style="color:#71717a;font-size:12px;margin-top:32px">JSON APIs: /api/find?q=… · /api/search?q=… · /api/dl/movie/{tmdb_id} · /api/scrape/movie/{tmdb_id}</p>
         </main>`
       ));
     }
@@ -177,6 +223,72 @@ const server = http.createServer(async (req, res) => {
       const body = cached(`sources:${provider}:${type}:${tmdbId}:${season}:${episode}`, CACHE_TTL_MS, () =>
         getSources({ tmdbId, type, season, episode }, provider));
       return json(res, 200, await body);
+    }
+
+    // --- search / find (TMDB-backed, needs TMDB_API_KEY) ---
+    if (path === "/api/search") {
+      const q = url.searchParams.get("q");
+      if (!q) throw new httpError(400, "Missing q query param");
+      const body = cached(`search:${q}`, CACHE_TTL_MS, () => tmdbSearch(q));
+      return json(res, 200, await body);
+    }
+
+    if (path === "/api/find") {
+      const q = url.searchParams.get("q");
+      if (!q) throw new httpError(400, "Missing q query param");
+      const season = url.searchParams.get("season");
+      const episode = url.searchParams.get("episode");
+      const year = url.searchParams.get("year");
+      const includeNxsha = url.searchParams.get("nxsha") !== "0";
+      const body = cached(`find:${q}:${season || ""}:${episode || ""}:${year || ""}:${includeNxsha}`, FIND_CACHE_TTL_MS, () =>
+        findAndScrapeMerged({ q, season, episode, year, includeNxsha }));
+      return json(res, 200, await body);
+    }
+
+    if (path === "/find") {
+      const q = url.searchParams.get("q") || "";
+      if (!q) {
+        return res.end(searchPageHtml());
+      }
+      const season = url.searchParams.get("season");
+      const episode = url.searchParams.get("episode");
+      // Client-side: page responds instantly, JS fetches the (cached) /api/find.
+      const apiUrl = `/api/find?q=${encodeURIComponent(q)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}`;
+      return res.end(pageHtml({
+        title: `Search: ${q}${season ? ` · S${season}E${episode}` : ""}`,
+        apiUrl,
+      }));
+    }
+
+    // --- self-hosted scrapers (no nxsha) ---
+    const sm = path.match(/^\/(?:api\/)?scrape\/(movie|tv)\/([^/]+)(?:\/(\d+)\/(\d+))?$/);
+    if (sm) {
+      const media = parseMedia(url.searchParams, { type: sm[1], tmdbId: sm[2], season: sm[3], episode: sm[4] });
+      const title = url.searchParams.get("title");
+      const year = url.searchParams.get("year");
+      const cacheKey = `scrape:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}`;
+      const loader = () => media.type === "tv"
+        ? scrapeEpisode({ tmdbId: media.tmdbId, type: "tv", season: media.season, episode: media.episode, title, year })
+        : scrapeMovie({ tmdbId: media.tmdbId, type: "movie", title, year });
+      const result = await cached(cacheKey, CACHE_TTL_MS, loader);
+      if (isApi) {
+        return json(res, 200, result);
+      }
+      // Reuse the /dl page template: normalize {providers} -> {servers}
+      const pageData = {
+        servers: (result.providers || []).map((p) => ({
+          server: { name: `${p.name || p.provider}${p.post ? ` · ${p.post}` : ""}` },
+          provider: p.provider,
+          sources: p.sources || [],
+          error: p.error || null,
+          source: p.source || "self",
+        })),
+      };
+      return res.end(pageHtml({
+        title: title || `${media.type === "tv" ? `${media.tmdbId} S${media.season}E${media.episode}` : media.tmdbId} (self-scrape)`,
+        apiUrl: `/api/scrape/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${title ? `?title=${encodeURIComponent(title)}` : ""}${year ? `${title ? "&" : "?"}year=${encodeURIComponent(year)}` : ""}`,
+        data: pageData,
+      }));
     }
 
     if (m) {
@@ -208,11 +320,20 @@ const server = http.createServer(async (req, res) => {
     });
     return res.end(body);
   }
-});
+}
 
-server.listen(PORT, HOST, () => {
-  console.log(`nxsha-dl-server listening on http://${HOST}:${PORT}`);
-  console.log(`  movie:  http://${HOST}:${PORT}/dl/movie/{tmdb_id}`);
-  console.log(`  tv:     http://${HOST}:${PORT}/dl/tv/{tmdb_id}/{season}/{episode}`);
-  console.log(`  json:   http://${HOST}:${PORT}/api/dl/movie/{tmdb_id}`);
-});
+// Only start the long-running server when executed directly (node server.mjs);
+// on Vercel this module is imported by api/index.mjs, which must not listen.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMain) {
+  const server = http.createServer(handleRequest);
+  server.listen(PORT, HOST, () => {
+    console.log(`nxsha-dl-server listening on http://${HOST}:${PORT}`);
+    console.log(`  movie:  http://${HOST}:${PORT}/dl/movie/{tmdb_id}`);
+    console.log(`  tv:     http://${HOST}:${PORT}/dl/tv/{tmdb_id}/{season}/{episode}`);
+    console.log(`  json:   http://${HOST}:${PORT}/api/dl/movie/{tmdb_id}`);
+  });
+}
+
+export default handleRequest;
