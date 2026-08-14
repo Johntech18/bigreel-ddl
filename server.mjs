@@ -15,7 +15,7 @@ import http from "node:http";
 import { getServers, getSources, getDirectLinks } from "./nxsha.mjs";
 
 const PORT = Number(process.env.PORT || 3000);
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "bigreel-ddl.vercel.app";
 
 // --- tiny TTL cache so repeated page loads don't hammer the upstream ----------
 const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MS || 60_000);
