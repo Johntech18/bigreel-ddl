@@ -45,7 +45,7 @@ export function providerNames() {
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 function tmdbKey() {
-  return process.env.TMDB_API_KEY || null;
+ return "b66176b4cb7084901bbeeb4214f4d688";
 }
 
 // Normalize a TMDB search result into our media shape.
