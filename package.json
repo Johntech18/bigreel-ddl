@@ -1,0 +1,13 @@
+{
+  "name": "nxsha-dl-server",
+  "version": "1.0.0",
+  "description": "Direct-download link aggregator for nxsha.app (movies + TV by TMDB id)",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test.mjs"
+  }
+}
