@@ -69,7 +69,7 @@ scrapers/
   hdhub4u.mjs     # WordPress mirrors (filmmilf.xyz): ?s= search -> post -> file-host links
   a111477.mjs     # static "Index of /" file indexer (a.111477.xyz): listing -> file rows
   cinextream.mjs  # ddl.cinextream.cc TMDB-id API: wasm-decrypted responses over the same indexer
-  pahe.mjs        # pahe.ink WordPress library: metadata-only (all links are locked shorteners)
+  pahe.mjs        # pahe.ink WordPress library: metadata + token-decode of ad-locker shorteners
   index.mjs       # registry + unified scrapeMovie/scrapeEpisode API
 ```
 
@@ -190,27 +190,42 @@ on a post is an ad-locker shortener** (`teknoasian.com/?ht=`, `tpi.li/<slug>`,
 `oii.la/…`, intercelestial, linegee, …) that reveals the real file URL only
 after a human clicks through captchas + "Generate Link" hops in a browser.
 
-So the pahe provider is **metadata-only by design**: it searches pahe, picks the
-right post, and extracts the download box (quality, size, mirror host, and the
-shortener URL). Every source is flagged:
+So the pahe provider is **metadata-first**: it searches pahe, picks the right
+post, and extracts the download box (quality, size, mirror host, and the
+shortener URL). Then it **unlocks up to 12 shorteners per scrape** — the
+locker pages (`tpi.li` / `oii.la` / …) embed the real destination URL in
+`<input name="token">` as a base64 suffix, which we decode server-side (the
+same trick "Bypass Pahe Links"-style userscripts do in the browser, minus the
+captcha clicking — the token is in the raw HTML). Resolved sources point at
+the real file host:
 
 ```json
 {
   "provider": "pahe",
-  "url": "https://tpi.li/cBtbFoKc",
+  "url": "https://mega.nz/file/CxJWmAAL#EjPeZP6Hr4kmkNTKlKvcwnlVyNr6njC5UkptB4yOzI8",
   "label": "1080p x265 DD+5.1 · 2.63 GB · GD",
   "quality": "1080p x265 DD+5.1",
   "size": "2.63 GB",
   "host": "GD",
+  "locked": false,
+  "note": "resolved from pahe's ad-locker shortener — file hosted on mega.nz"
+}
+```
+
+Sources that couldn't be unlocked (rate-limited, rotated, or beyond the per-
+scrape cap) stay flagged:
+
+```json
+{
+  "url": "https://tpi.li/cBtbFoKc",
   "locked": true,
   "note": "external locked link — opens pahe's ad-locker shortener; resolve in a browser (captcha + Generate Link hops)"
 }
 ```
 
-It tells you *what exists* (quality/size/mirror for each release) and gives you
-the exact link to open manually — it does not pretend to have direct file URLs.
-TV scrapes resolve the whole-season pack post (pahe doesn't do per-episode
-pages), and each TV source's note says so.
+Resolutions are cached per shortener URL (12 h) so repeated scrapes of the
+same post are cheap. TV scrapes resolve the whole-season pack post (pahe
+doesn't do per-episode pages), and each TV source's note says so.
 
 You can filter pahe's (locked) sources by minimum quality with `min_quality`
 (`480p`, `1080p`, `2160p`, `4K` — accepts bare numbers too) on any `/find`,
@@ -292,7 +307,7 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `HDHUB4U_DOMAINS` | `filmmilf.xyz,hdhub4u.world,hdhub4u.page` | Comma-separated mirror domains for the hdhub4u scraper; tries each in order |
 | `A111477_DOMAINS` | `a.111477.xyz` | Domain(s) for the static file indexer provider |
 | `CINEXTREAM_DOMAINS` | `ddl.cinextream.cc` | Domain(s) for the cinextream API provider (same a.111477.xyz files, TMDB-id lookup) |
-| `PAHE_DOMAINS` | `pahe.ink` | Domain(s) for the pahe metadata-only provider; every link is a locked external shortener |
+| `PAHE_DOMAINS` | `pahe.ink` | Domain(s) for the pahe provider; shortener links are auto-unlocked via token decode (up to 12 per scrape) |
 
 ## How nxsha.app works (reverse-engineered)
 

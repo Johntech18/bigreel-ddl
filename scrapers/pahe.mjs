@@ -27,6 +27,37 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // box is ignored so nav/social links don't leak into sources.
 const MIRROR_RE = /^(SD|GD|MG|1D|1F|PD|VF|GF|HD|4K|UHD)$/i;
 
+// Ad-locker shortener hosts pahe's mirror buttons point at. Their pages embed
+// the real destination URL in <input name="token"> as base64 — decode it and
+// the link is unlocked (this is what "Bypass Pahe Links"-style userscripts
+// do in the browser; we do it server-side). See resolveToken() below.
+const SHORTLINK_HOSTS = new Set([
+  "tpi.li", "oii.la", "tei.ai", "tii.ai", "iir.ai", "oko.sh", "uii.io", "ouo.io", "aylink.co", "exe.io",
+]);
+
+// Decode the destination URL from a shortener's token value. The token is
+// `<hex>…<slug>1508<base64(url)>` — the last chunk after "aHR0c" (base64 of
+// "http") is the real URL. Falls back to a whole-string base64 scan.
+export function resolveToken(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  const b64 = (chunk) => {
+    try {
+      const decoded = Buffer.from(chunk, "base64").toString("utf8");
+      const m = decoded.match(/https?:\/\/[^\u0000-\u001f\s<>"']+/i);
+      return m ? m[0] : null;
+    } catch {
+      return null;
+    }
+  };
+  const last = s.lastIndexOf("aHR0c");
+  if (last !== -1) {
+    const hit = b64(s.slice(last));
+    if (hit) return hit;
+  }
+  return b64(s);
+}
+
 // Extract the leading resolution from a quality label ("1080p x265 DD+5.1" ->
 // 1080, "4K …" -> 2160, "480p" -> 480). Returns null when there is none.
 function sourceResolution(quality) {
@@ -62,12 +93,62 @@ export function makePahe({
   name = "pahe",
   label = "Pahe.in (metadata — links are external locked shorteners)",
   paceMs = 400,
+  shortlinkPaceMs = 900,
   maxFiles = 48,
+  maxResolve = 12,
 } = {}) {
   const base = domains[0] ? `https://${domains[0]}` : null;
+  const shortlinkCache = new Map(); // url -> { expiresAt, dest }
 
   async function paced() {
     if (paceMs) await sleep(paceMs);
+  }
+
+  // Resolve one ad-locker shortener URL to its real destination by decoding
+  // the token pahe embeds on the locker page (tpi.li / oii.la / …). Cached
+  // per URL so repeated scrapes of the same post don't re-fetch the lockers.
+  // tpi.li rate-limits rapid bursts (it serves a stripped page without the
+  // token), so space requests out and retry once on failure.
+  async function resolveShortlink(url) {
+    const hit = shortlinkCache.get(url);
+    if (hit && hit.expiresAt > Date.now()) return hit.dest;
+    const host = (new URL(url).hostname || "").toLowerCase();
+    if (![...SHORTLINK_HOSTS].some((h) => host === h || host.endsWith(`.${h}`))) return null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await sleep(shortlinkPaceMs);
+      try {
+        const { status, text } = await fetchChain(url);
+        if (status !== 200) return null;
+        const tok = text.match(/<input[^>]*name=["']token["'][^>]*>/i);
+        if (!tok) { await sleep(1200); continue; }
+        const val = (tok[0].match(/value=["']([^"']*)["']/i) || [])[1];
+        const dest = val ? resolveToken(val) : null;
+        if (dest) shortlinkCache.set(url, { expiresAt: Date.now() + 12 * 60 * 60 * 1000, dest });
+        return dest;
+      } catch {
+        await sleep(1200);
+      }
+    }
+    return null;
+  }
+
+  // After extraction, try to unlock up to `maxResolve` shortener sources.
+  // Resolved ones get the real file-host URL + a note; the rest stay locked.
+  async function resolveSources(sources) {
+    let remaining = maxResolve;
+    for (const s of sources) {
+      if (!s.locked || !remaining) continue;
+      if (![...SHORTLINK_HOSTS].some((h) => {
+        try { const host = new URL(s.url).hostname.toLowerCase(); return host === h || host.endsWith(`.${h}`); } catch { return false; }
+      })) continue;
+      const dest = await resolveShortlink(s.url);
+      remaining--;
+      if (!dest) continue;
+      s.url = dest;
+      s.locked = false;
+      s.note = `resolved from pahe's ad-locker shortener — file hosted on ${new URL(dest).hostname}`;
+    }
+    return sources;
   }
 
   // WordPress search: /?s=<query> -> timeline posts.
@@ -163,7 +244,7 @@ export function makePahe({
     await paced();
     const { status, text } = await fetchChain(post.url);
     if (status !== 200) return { provider: name, error: `Post returned HTTP ${status}`, sources: [] };
-    const sources = filterMinQuality(extractDownloadBox(text), minQuality);
+    const sources = await resolveSources(filterMinQuality(extractDownloadBox(text), minQuality));
     if (!sources.length) return { provider: name, post: post.url, error: "No download box found on post (or none at the requested quality)", sources: [] };
     return { provider: name, post: post.url, sources };
   }
@@ -186,7 +267,7 @@ export function makePahe({
     await paced();
     const { status, text } = await fetchChain(post.url);
     if (status !== 200) return { provider: name, error: `Post returned HTTP ${status}`, sources: [] };
-    const sources = filterMinQuality(extractDownloadBox(text), minQuality);
+    const sources = await resolveSources(filterMinQuality(extractDownloadBox(text), minQuality));
     if (!sources.length) return { provider: name, post: post.url, error: "No download box found on post (or none at the requested quality)", sources: [] };
     // Make the season-pack nature explicit in each label.
     for (const s of sources) {

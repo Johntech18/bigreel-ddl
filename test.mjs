@@ -7,7 +7,7 @@ import { filmyfly } from "./scrapers/filmyfly.mjs";
 import { hdhub4u } from "./scrapers/hdhub4u.mjs";
 import { a111477 } from "./scrapers/a111477.mjs";
 import { cinextream } from "./scrapers/cinextream.mjs";
-import { pahe } from "./scrapers/pahe.mjs";
+import { pahe, resolveToken } from "./scrapers/pahe.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -110,6 +110,15 @@ await netCheck("getDirectLinks covers all providers",
   mock.close();
 }
 
+// --- pahe shortlink token decoder (pure, no network) --------------------------
+{
+  check("resolveToken decodes a trailing-base64 token",
+    resolveToken("a264ca36df7661c3fcb23ee7045a57e5a2a4befa2026cBtbFoKc1508aHR0cHM6Ly9tZWdhLm56L2ZpbGUvQ3hKV21BQUwjRWpQZVpQNkhyNGtta05UT2xLdmN3bmxWeU5yNm5qQzVVa3B0QjR5T3pJOA==") === "https://mega.nz/file/CxJWmAAL#EjPeZP6Hr4kmkNTOlKvcwnlVyNr6njC5UkptB4yOzI8");
+  check("resolveToken handles a second token shape (gdflix)",
+    resolveToken("837a59e55cfe935aefe694f93b987a445287e74320260fS7wXxRBj61508aHR0cHM6Ly9nZGZsaXguZGV2L2ZpbGUvQlhqb1o0Y20wamdtbFJD") === "https://gdflix.dev/file/BXjoZ4cm0jgmlRC");
+  check("resolveToken returns null for junk", resolveToken("not-a-token") === null && resolveToken("") === null);
+}
+
 // --- self-hosted scrapers -----------------------------------------------------
 const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
 
@@ -174,7 +183,10 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
   } else {
     console.log(`INFO  pahe: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
     check("pahe extracts quality/mirror metadata", m.sources.length > 0 && m.sources[0].quality !== undefined && m.sources[0].host !== undefined);
-    check("pahe sources are flagged locked with a note", m.sources.every((s) => s.locked === true && /external locked/.test(s.note || "")));
+    // Every source is either an unresolved locked shortener or a resolved
+    // file-host URL — never a bare shortener with locked:false.
+    const bad = m.sources.filter((s) => !s.locked && /tpi\.li|oii\.la|tei\.ai|uii\.io|ouo\.io|exe\.io|aylink/.test(s.url || ""));
+    check("pahe resolved sources point at real file hosts", bad.length === 0);
     const f = await pahe.scrapeMovie({ title: "Deadpool & Wolverine", year: "2024", minQuality: "1080p" });
     if (f.error) {
       skip("pahe min_quality filters sources", f.error);
@@ -183,6 +195,19 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
       check("pahe min_quality keeps only 1080p+",
         f.sources.length > 0 && f.sources.length < m.sources.length && f.sources.every((s) => /1080p|2160p|4k/i.test(s.quality || "")));
     }
+  }
+}
+
+{
+  // pahe shortlink resolution (live): a current post's tpi.li links should
+  // decode to real file hosts (mega.nz / gdflix.dev / send.now …).
+  const a = await pahe.scrapeMovie({ title: "Animal Farm", year: "2026" });
+  if (a.error) {
+    skip("pahe resolves shortener tokens to file hosts", a.error);
+  } else {
+    const open = a.sources.filter((s) => !s.locked);
+    console.log(`INFO  pahe shortlinks: ${open.length}/${a.sources.length} resolved (${[...new Set(open.map((s) => new URL(s.url).hostname))].join(", ")})`);
+    check("pahe unlocks at least one shortener token", open.length > 0 && open.every((s) => /^https?:\/\//.test(s.url)));
   }
 }
 
