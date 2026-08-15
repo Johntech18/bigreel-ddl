@@ -12,6 +12,7 @@ import { makeHdhub4u, hdhub4u as defaultHdhub4u } from "./hdhub4u.mjs";
 import { makeA111477, a111477 as defaultA111477 } from "./a111477.mjs";
 import { makeCinextream, cinextream as defaultCinextream } from "./cinextream.mjs";
 import { makePahe, pahe as defaultPahe } from "./pahe.mjs";
+import { makeMovierulz, movierulz as defaultMovierulz } from "./movierulz.mjs";
 import { normalizeTitle } from "./base.mjs";
 import { getDirectLinks } from "../nxsha.mjs";
 
@@ -29,6 +30,7 @@ const hdhub4uDomains = envDomains("HDHUB4U_DOMAINS");
 const a111477Domains = envDomains("A111477_DOMAINS");
 const cinextreamDomains = envDomains("CINEXTREAM_DOMAINS");
 const paheDomains = envDomains("PAHE_DOMAINS");
+const movierulzDomains = envDomains("MOVIERULZ_DOMAINS");
 
 export const registry = {
   filmyfly: filmyflyDomains ? makeFilmyfly({ domains: filmyflyDomains }) : defaultFilmyfly,
@@ -36,6 +38,7 @@ export const registry = {
   a111477: a111477Domains ? makeA111477({ domains: a111477Domains }) : defaultA111477,
   cinextream: cinextreamDomains ? makeCinextream({ domains: cinextreamDomains }) : defaultCinextream,
   pahe: paheDomains ? makePahe({ domains: paheDomains }) : defaultPahe,
+  movierulz: movierulzDomains ? makeMovierulz({ domains: movierulzDomains }) : defaultMovierulz,
 };
 
 export function providerNames() {
@@ -47,6 +50,7 @@ export function providerNames() {
 // brand names.
 const FRIENDLY = {
   pahe: "Elite Server",
+  movierulz: "Indian Server",
   cinextream: "Prime Server",
   a111477: "Index Server",
   filmyfly: "Swift Server",
@@ -54,7 +58,7 @@ const FRIENDLY = {
 };
 
 // UI ordering: Elite (pahe) leads the server list, then the rest.
-const PROVIDER_ORDER = ["pahe", "cinextream", "a111477", "filmyfly", "hdhub4u"];
+const PROVIDER_ORDER = ["pahe", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u"];
 
 export function friendlyName(provider) {
   return FRIENDLY[provider] || provider;
@@ -122,7 +126,7 @@ async function tmdbTitleYear({ tmdbId, type, season }) {
   if (!res.ok) return null;
   const j = await res.json();
   if (kind === "movie") return { title: j.title || j.original_title, year: (j.release_date || "").slice(0, 4) };
-  return { title: j.name || j.original_name, year: null };
+  return { title: j.name || j.original_name, year: (j.first_air_date || "").slice(0, 4) || null };
 }
 
 export async function resolveMetadata({ tmdbId, type, season, title, year }) {
@@ -181,7 +185,7 @@ export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
       const i = idx++;
       const p = registry[names[i]];
       try {
-        results[i] = await p.scrapeEpisode({ title: meta.title, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality });
+        results[i] = await p.scrapeEpisode({ title: meta.title, year: meta.year, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality });
       } catch (e) {
         results[i] = { provider: p.name, error: e.message, sources: [] };
       }

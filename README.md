@@ -10,6 +10,7 @@ A zero-dependency Node.js server that aggregates **direct download links** for m
 | Friendly name | Backend | Notes |
 |---|---|---|
 | **Elite Server** | pahe | Best overall · quality packs 480p → 2160p × x264/x265 · shortener tokens auto-resolved to file hosts |
+| **Indian Server** | 5movierulz.watch | Big Indian library (Telugu/Tamil/Malayalam/Hindi/Hollywood-dubs) · torrent magnets (direct) + streaming mirrors (locked) |
 | **Prime Server** | cinextream | Rich metadata: 4K / H.265 / Atmos / TrueHD |
 | **Index Server** | a111477 | Raw file indexer · direct .mkv/.mp4 rows |
 | **Swift Server** | filmyfly | Multi-mirror host chains · fast direct links |
@@ -87,6 +88,7 @@ scrapers/
   a111477.mjs     # static "Index of /" file indexer (a.111477.xyz): listing -> file rows
   cinextream.mjs  # ddl.cinextream.cc TMDB-id API: wasm-decrypted responses over the same indexer
   pahe.mjs        # pahe.ink WordPress library: metadata + token-decode of ad-locker shorteners
+  movierulz.mjs   # 5movierulz.watch Indian site: category-page discovery -> torrent magnets + streaming mirrors
   index.mjs       # registry + unified scrapeMovie/scrapeEpisode API
 ```
 
@@ -301,7 +303,7 @@ the self-hosted servers.
 2. Log in: `vercel login`
 3. Set env vars in the Vercel dashboard (Settings → Environment Variables)
    - at minimum `TMDB_API_KEY` (free, themoviedb.org). Optional:   `FLARESOLVERR_URL`,
-   `FILMYFLY_DOMAINS`, `HDHUB4U_DOMAINS`, `A111477_DOMAINS`, `CINEXTREAM_DOMAINS`, `PAHE_DOMAINS`.
+   `FILMYFLY_DOMAINS`, `HDHUB4U_DOMAINS`, `A111477_DOMAINS`, `CINEXTREAM_DOMAINS`, `PAHE_DOMAINS`, `MOVIERULZ_DOMAINS`.
 4. `vercel --prod`
 
 Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
@@ -326,6 +328,7 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `A111477_DOMAINS` | `a.111477.xyz` | Domain(s) for the static file indexer provider |
 | `CINEXTREAM_DOMAINS` | `ddl.cinextream.cc` | Domain(s) for the cinextream API provider (same a.111477.xyz files, TMDB-id lookup) |
 | `PAHE_DOMAINS` | `pahe.ink` | Domain(s) for the pahe provider; shortener links are auto-unlocked via token decode (up to 12 per scrape) |
+| `MOVIERULZ_DOMAINS` | `www.5movierulz.watch` | Domain(s) for the Indian server (movierulz); search is unavailable server-side so discovery walks the site's category pages |
 
 ## How nxsha.app works (reverse-engineered)
 

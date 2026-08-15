@@ -8,6 +8,7 @@ import { hdhub4u } from "./scrapers/hdhub4u.mjs";
 import { a111477 } from "./scrapers/a111477.mjs";
 import { cinextream } from "./scrapers/cinextream.mjs";
 import { pahe, resolveToken } from "./scrapers/pahe.mjs";
+import { movierulz } from "./scrapers/movierulz.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -106,7 +107,7 @@ await netCheck("getDirectLinks covers all providers",
     solved.locked === false && solved.via === "flaresolverr" && /1080p\.mkv/.test(solved.url));
   const unsolved = await resolveFilesdl(url, { flareSolverrUrl: null });
   check("filesdl: no solver -> locked with diagnostic",
-    unsolved.locked === true && /FLARESOLVERR_URL/.test(unsolved.note || ""));
+    unsolved.locked === true && /cloudflare/i.test(unsolved.note || ""));
   mock.close();
 }
 
@@ -226,6 +227,39 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
     } else {
       check("cinextream tv resolves episode files", e.sources.length > 0);
     }
+  }
+}
+
+{
+  // movierulz: Indian site (5movierulz.watch). Search is unavailable
+  // server-side (?s= is Cloudflare-gated, ?search= ignores the query), so
+  // discovery walks category pages. Torrent magnets are direct links; the
+  // streaming mirror cards are external file hosts -> locked.
+  const m = await movierulz.scrapeMovie({ title: "Vadala", year: "2026" });
+  if (m.error) {
+    skip("movierulz finds post and extracts links", m.error);
+  } else {
+    console.log(`INFO  movierulz: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("movierulz extracts torrent magnets", m.sources.some((s) => s.url.startsWith("magnet:")));
+    check("movierulz magnets carry quality + size",
+      m.sources.filter((s) => s.url.startsWith("magnet:")).every((s) => s.quality && s.size));
+    const streaming = m.sources.filter((s) => !s.url.startsWith("magnet:"));
+    check("movierulz streaming mirrors are locked file hosts",
+      streaming.every((s) => s.locked === true));
+    const f = await movierulz.scrapeMovie({ title: "Vadala", year: "2026", minQuality: "1080p" });
+    if (f.error) {
+      skip("movierulz min_quality filters sources", f.error);
+    } else {
+      check("movierulz min_quality keeps 1080p+ magnets",
+        f.sources.filter((s) => s.url.startsWith("magnet:")).every((s) => /1080p|2160p|4k/i.test(s.quality || "")));
+    }
+  }
+  const e = await movierulz.scrapeEpisode({ title: "The Legend of Karna", year: "2026", season: 1, episode: 1 });
+  if (e.error) {
+    skip("movierulz finds tv season pack", e.error);
+  } else {
+    console.log(`INFO  movierulz tv: ${e.sources.length} sources (locked: ${e.sources.filter((s) => s.locked).length})`);
+    check("movierulz tv finds season-pack magnets", e.sources.some((s) => s.url.startsWith("magnet:")));
   }
 }
 

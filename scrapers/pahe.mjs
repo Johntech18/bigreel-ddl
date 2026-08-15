@@ -234,7 +234,7 @@ export function makePahe({
   async function scrapeMovie({ title, year, minQuality }) {
     if (!base) return { provider: name, error: "no domains configured", sources: [] };
     const { posts, base: activeBase } = await searchPosts(title, year);
-    if (!posts.length) return { provider: name, error: `No post found for "${title}" on pahe`, sources: [] };
+    if (!posts.length) return { provider: name, error: `No post found for "${title}" on this server`, sources: [] };
 
     // Prefer the newest-looking match that still carries the title.
     let post = posts.find((p) => titleMatches(title, p.title, year));
@@ -252,11 +252,11 @@ export function makePahe({
   // TV: pahe posts whole-season packs ("Show Name Season N Complete ...").
   // We match the show's post, prefer one mentioning the requested season, and
   // return the season-pack download box (each source is still a locked
-  // shortener). Episode-level granularity doesn't exist on pahe.
+  // shortener). Episode-level granularity doesn't exist on this server.
   async function scrapeEpisode({ title, season, episode, minQuality }) {
     if (!base) return { provider: name, error: "no domains configured", sources: [] };
     const { posts, base: activeBase } = await searchPosts(title, null);
-    if (!posts.length) return { provider: name, error: `No post found for "${title}" on pahe`, sources: [] };
+    if (!posts.length) return { provider: name, error: `No post found for "${title}" on this server`, sources: [] };
 
     const seasonRe = season ? new RegExp(`season\\s*${season}(\\b|\\s|$)`, "i") : null;
     let post = posts.find((p) => seasonRe && seasonRe.test(p.title));
