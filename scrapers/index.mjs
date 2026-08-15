@@ -10,7 +10,8 @@
 import { makeFilmyfly, filmyfly as defaultFilmyfly } from "./filmyfly.mjs";
 import { makeHdhub4u, hdhub4u as defaultHdhub4u } from "./hdhub4u.mjs";
 import { makeA111477, a111477 as defaultA111477 } from "./a111477.mjs";
-import { makeFzmovies, fzmovies as defaultFzmovies } from "./fzmovies.mjs";
+import { makeCinextream, cinextream as defaultCinextream } from "./cinextream.mjs";
+import { makePahe, pahe as defaultPahe } from "./pahe.mjs";
 import { normalizeTitle } from "./base.mjs";
 import { getDirectLinks } from "../nxsha.mjs";
 
@@ -26,16 +27,15 @@ function envDomains(name) {
 const filmyflyDomains = envDomains("FILMYFLY_DOMAINS");
 const hdhub4uDomains = envDomains("HDHUB4U_DOMAINS");
 const a111477Domains = envDomains("A111477_DOMAINS");
-const fzmoviesDomains = envDomains("FZMOVIES_DOMAINS");
-const fzmoviesTvDomains = envDomains("FZMOVIES_TV_DOMAINS");
+const cinextreamDomains = envDomains("CINEXTREAM_DOMAINS");
+const paheDomains = envDomains("PAHE_DOMAINS");
 
 export const registry = {
   filmyfly: filmyflyDomains ? makeFilmyfly({ domains: filmyflyDomains }) : defaultFilmyfly,
   hdhub4u: hdhub4uDomains ? makeHdhub4u({ domains: hdhub4uDomains }) : defaultHdhub4u,
   a111477: a111477Domains ? makeA111477({ domains: a111477Domains }) : defaultA111477,
-  fzmovies: fzmoviesDomains || fzmoviesTvDomains
-    ? makeFzmovies({ domains: fzmoviesDomains || undefined, tvDomains: fzmoviesTvDomains || undefined })
-    : defaultFzmovies,
+  cinextream: cinextreamDomains ? makeCinextream({ domains: cinextreamDomains }) : defaultCinextream,
+  pahe: paheDomains ? makePahe({ domains: paheDomains }) : defaultPahe,
 };
 
 export function providerNames() {
@@ -88,11 +88,12 @@ async function tmdbTitleYear({ tmdbId, type, season }) {
 }
 
 export async function resolveMetadata({ tmdbId, type, season, title, year }) {
-  if (title && year) return { title, year: String(year) };
-  if (title) return { title, year: null };
+  const carry = tmdbId ? { tmdbId: String(tmdbId) } : {};
+  if (title && year) return { title, year: String(year), ...carry };
+  if (title) return { title, year: null, ...carry };
   if (tmdbId) {
     const t = await tmdbTitleYear({ tmdbId, type, season });
-    if (t) return t;
+    if (t) return { ...t, ...carry };
   }
   return null;
 }
@@ -115,7 +116,7 @@ export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
       const i = idx++;
       const p = registry[names[i]];
       try {
-        results[i] = await p.scrapeMovie(meta);
+        results[i] = await p.scrapeMovie({ ...meta, minQuality: opts.minQuality });
       } catch (e) {
         results[i] = { provider: p.name, error: e.message, sources: [] };
       }
@@ -142,7 +143,7 @@ export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
       const i = idx++;
       const p = registry[names[i]];
       try {
-        results[i] = await p.scrapeEpisode({ title: meta.title, season: opts.season, episode: opts.episode });
+        results[i] = await p.scrapeEpisode({ title: meta.title, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality });
       } catch (e) {
         results[i] = { provider: p.name, error: e.message, sources: [] };
       }
@@ -167,7 +168,7 @@ export function scoreCandidate(c, q, { wantTv, year }) {
 }
 
 // Title -> tmdbId -> scrape. The convenience endpoint behind `/api/find`.
-export async function findAndScrape({ q, season, episode, year, concurrency = 2 } = {}) {
+export async function findAndScrape({ q, season, episode, year, minQuality, concurrency = 2 } = {}) {
   const { results, error } = await tmdbSearch(q);
   if (error) return { error, providers: [] };
   if (!results?.length) return { error: `No TMDB matches for "${q}"`, providers: [] };
@@ -188,8 +189,8 @@ export async function findAndScrape({ q, season, episode, year, concurrency = 2 
   }
 
   const providers = match.type === "tv"
-    ? await scrapeEpisode({ tmdbId: match.tmdbId, type: "tv", season, episode }, { concurrency })
-    : await scrapeMovie({ tmdbId: match.tmdbId, type: "movie" }, { concurrency });
+    ? await scrapeEpisode({ tmdbId: match.tmdbId, type: "tv", season, episode, minQuality }, { concurrency })
+    : await scrapeMovie({ tmdbId: match.tmdbId, type: "movie", minQuality }, { concurrency });
   return { match, results, ...providers };
 }
 
@@ -211,8 +212,8 @@ export function mergeProviders(selfProviders, nxshaServers) {
 
 // findAndScrape + nxsha proxy merged into one response. `includeNxsha: false`
 // keeps the self-only behavior. `dl` is injectable for tests.
-export async function findAndScrapeMerged({ q, season, episode, year, includeNxsha = true, concurrency = 2 } = {}, { dl = getDirectLinks } = {}) {
-  const base = await findAndScrape({ q, season, episode, year, concurrency });
+export async function findAndScrapeMerged({ q, season, episode, year, minQuality, includeNxsha = true, concurrency = 2 } = {}, { dl = getDirectLinks } = {}) {
+  const base = await findAndScrape({ q, season, episode, year, minQuality, concurrency });
   const selfProviders = base.providers || [];
   if (!base.match || !includeNxsha) {
     return { ...base, providers: mergeProviders(selfProviders, []) };

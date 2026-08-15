@@ -6,7 +6,8 @@ import { searchQuery, normalizeTitle } from "./scrapers/base.mjs";
 import { filmyfly } from "./scrapers/filmyfly.mjs";
 import { hdhub4u } from "./scrapers/hdhub4u.mjs";
 import { a111477 } from "./scrapers/a111477.mjs";
-import { fzmovies } from "./scrapers/fzmovies.mjs";
+import { cinextream } from "./scrapers/cinextream.mjs";
+import { pahe } from "./scrapers/pahe.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -165,23 +166,42 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
 }
 
 {
-  // fzmovies: session-bound chain — search + resolve a known movie.
-  const { posts } = await fzmovies.searchPosts("Spider-Man: Far from Home", "2019");
-  check("fzmovies search finds movie", posts.length > 0, JSON.stringify(posts).slice(0, 150));
-  if (posts.length) {
-    const r = await fzmovies.scrapeMovie({ title: "Spider-Man: Far from Home", year: "2019" });
-    console.log(`INFO  fzmovies: ${r.sources.length} sources, ${(r.errors || []).length} errors`);
-    check("fzmovies resolves direct CDN links", r.sources.length > 0,
-      `errors: ${(r.errors || []).slice(0, 3).join(" | ")}`);
-    if (r.sources.length) {
-      check("fzmovies links are direct mp4/mkv on CDN mirrors",
-        /https:\/\/\w+\.y9a8ua48mhss5ye\.cyou\/res\//.test(r.sources[0].url));
+  // pahe: metadata-only provider — search + download box extraction. Every
+  // source is a locked external shortener by design (no direct files).
+  const m = await pahe.scrapeMovie({ title: "Deadpool & Wolverine", year: "2024" });
+  if (m.error) {
+    skip("pahe finds post and extracts download box", m.error);
+  } else {
+    console.log(`INFO  pahe: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("pahe extracts quality/mirror metadata", m.sources.length > 0 && m.sources[0].quality !== undefined && m.sources[0].host !== undefined);
+    check("pahe sources are flagged locked with a note", m.sources.every((s) => s.locked === true && /external locked/.test(s.note || "")));
+    const f = await pahe.scrapeMovie({ title: "Deadpool & Wolverine", year: "2024", minQuality: "1080p" });
+    if (f.error) {
+      skip("pahe min_quality filters sources", f.error);
+    } else {
+      console.log(`INFO  pahe min_quality=1080p: ${f.sources.length} sources (unfiltered: ${m.sources.length})`);
+      check("pahe min_quality keeps only 1080p+",
+        f.sources.length > 0 && f.sources.length < m.sources.length && f.sources.every((s) => /1080p|2160p|4k/i.test(s.quality || "")));
     }
   }
-  const e = await fzmovies.scrapeEpisode({ title: "Breaking Bad", season: "1", episode: "1" });
-  console.log(`INFO  fzmovies tv: ${e.sources.length} sources, ${(e.errors || []).length} errors`);
-  check("fzmovies tv finds episode direct links", e.sources.length > 0,
-    `errors: ${(e.errors || []).slice(0, 3).join(" | ")}`);
+}
+
+{
+  // cinextream: TMDB-id API with wasm-decrypted responses pointing at
+  // a.111477.xyz files (same indexer, better frontend).
+  const m = await cinextream.scrapeMovie({ tmdbId: "533535", title: "Deadpool & Wolverine" });
+  if (m.error) {
+    skip("cinextream movie resolves files", m.error);
+  } else {
+    console.log(`INFO  cinextream: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("cinextream movie resolves wasm-decrypted files", m.sources.length > 0 && !!m.sources[0].quality);
+    const e = await cinextream.scrapeEpisode({ tmdbId: "1396", season: "1", episode: "1" });
+    if (e.error) {
+      skip("cinextream tv resolves episode", e.error);
+    } else {
+      check("cinextream tv resolves episode files", e.sources.length > 0);
+    }
+  }
 }
 
 // --- merged find (live, needs TMDB_API_KEY) -----------------------------------

@@ -149,7 +149,7 @@ const pageHtml = ({ title, apiUrl, data: initialData, error: initialError }) => 
             \${s.sources.map(x => \`
               <div class="src">
                 <div><div class="q">\${escapeHtml(x.label || x.quality || x.url)}</div>
-                <div class="meta">\${escapeHtml(x.type || "")}\${x.isEmbed ? " · embed" : ""}\${x.provider ? " · " + escapeHtml(x.provider) : ""}</div></div>
+                <div class="meta">\${escapeHtml(x.type || "")}\${x.isEmbed ? " · embed" : ""}\${x.locked ? " · 🔒 locked" : ""}\${x.provider ? " · " + escapeHtml(x.provider) : ""}\${x.size ? " · " + escapeHtml(x.size) : ""}\${x.note ? " · " + escapeHtml(x.note) : ""}</div></div>
                 <a class="btn" href="\${escapeAttr(x.url)}" target="_blank" rel="noopener noreferrer">Download</a>
               </div>\`).join("")}
           </details>\`).join("");
@@ -239,9 +239,10 @@ export async function handleRequest(req, res) {
       const season = url.searchParams.get("season");
       const episode = url.searchParams.get("episode");
       const year = url.searchParams.get("year");
+      const minQuality = url.searchParams.get("min_quality") || undefined;
       const includeNxsha = url.searchParams.get("nxsha") !== "0";
-      const body = cached(`find:${q}:${season || ""}:${episode || ""}:${year || ""}:${includeNxsha}`, FIND_CACHE_TTL_MS, () =>
-        findAndScrapeMerged({ q, season, episode, year, includeNxsha }));
+      const body = cached(`find:${q}:${season || ""}:${episode || ""}:${year || ""}:${minQuality || ""}:${includeNxsha}`, FIND_CACHE_TTL_MS, () =>
+        findAndScrapeMerged({ q, season, episode, year, minQuality, includeNxsha }));
       return json(res, 200, await body);
     }
 
@@ -252,10 +253,11 @@ export async function handleRequest(req, res) {
       }
       const season = url.searchParams.get("season");
       const episode = url.searchParams.get("episode");
+      const minQuality = url.searchParams.get("min_quality") || "";
       // Client-side: page responds instantly, JS fetches the (cached) /api/find.
-      const apiUrl = `/api/find?q=${encodeURIComponent(q)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}`;
+      const apiUrl = `/api/find?q=${encodeURIComponent(q)}${season ? `&season=${season}` : ""}${episode ? `&episode=${episode}` : ""}${minQuality ? `&min_quality=${encodeURIComponent(minQuality)}` : ""}`;
       return res.end(pageHtml({
-        title: `Search: ${q}${season ? ` · S${season}E${episode}` : ""}`,
+        title: `Search: ${q}${season ? ` · S${season}E${episode}` : ""}${minQuality ? ` · ${minQuality}+` : ""}`,
         apiUrl,
       }));
     }
@@ -266,10 +268,11 @@ export async function handleRequest(req, res) {
       const media = parseMedia(url.searchParams, { type: sm[1], tmdbId: sm[2], season: sm[3], episode: sm[4] });
       const title = url.searchParams.get("title");
       const year = url.searchParams.get("year");
-      const cacheKey = `scrape:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}`;
+      const minQuality = url.searchParams.get("min_quality") || undefined;
+      const cacheKey = `scrape:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}`;
       const loader = () => media.type === "tv"
-        ? scrapeEpisode({ tmdbId: media.tmdbId, type: "tv", season: media.season, episode: media.episode, title, year })
-        : scrapeMovie({ tmdbId: media.tmdbId, type: "movie", title, year });
+        ? scrapeEpisode({ tmdbId: media.tmdbId, type: "tv", season: media.season, episode: media.episode, title, year, minQuality })
+        : scrapeMovie({ tmdbId: media.tmdbId, type: "movie", title, year, minQuality });
       const result = await cached(cacheKey, CACHE_TTL_MS, loader);
       if (isApi) {
         return json(res, 200, result);
@@ -284,9 +287,13 @@ export async function handleRequest(req, res) {
           source: p.source || "self",
         })),
       };
+      const urlQuery = [];
+      if (title) urlQuery.push(`title=${encodeURIComponent(title)}`);
+      if (year) urlQuery.push(`year=${encodeURIComponent(year)}`);
+      if (minQuality) urlQuery.push(`min_quality=${encodeURIComponent(minQuality)}`);
       return res.end(pageHtml({
-        title: title || `${media.type === "tv" ? `${media.tmdbId} S${media.season}E${media.episode}` : media.tmdbId} (self-scrape)`,
-        apiUrl: `/api/scrape/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${title ? `?title=${encodeURIComponent(title)}` : ""}${year ? `${title ? "&" : "?"}year=${encodeURIComponent(year)}` : ""}`,
+        title: `${title || `${media.type === "tv" ? `${media.tmdbId} S${media.season}E${media.episode}` : media.tmdbId}`} (self-scrape)${minQuality ? ` · ${minQuality}+` : ""}`,
+        apiUrl: `/api/scrape/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${urlQuery.length ? `?${urlQuery.join("&")}` : ""}`,
         data: pageData,
       }));
     }
