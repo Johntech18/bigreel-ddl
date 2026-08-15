@@ -1,7 +1,7 @@
-// server.mjs — BIGREEL Downloader: direct-download link server.
+// server.mjs - BIGREEL Downloader: direct-download link server.
 //
 // Merges two backends into one response:
-//   A) self-hosted scrapers (own modules — Elite/Prime/Index/Swift/Nexus)
+//   A) self-hosted scrapers (own modules - Elite/Prime/Index/Swift/Nexus)
 //   B) nxsha.app proxy (partner sources)
 //
 // URL scheme mirrors nxsha.app so a stream site can deep-link by TMDB id:
@@ -79,17 +79,17 @@ const html = (title, body) => `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="theme-color" content="${ACCENT}"/>
 <link rel="icon" type="image/png" href="${LOGO_URL}"/>
-<meta name="description" content="BIGREEL Downloader — direct download links for movies and TV shows, by TMDB id."/>
+<meta name="description" content="BIGREEL Downloader - direct download links for movies and TV shows, by TMDB id."/>
 <meta property="og:site_name" content="${BRAND}"/>
-<meta property="og:title" content="${esc(title)} — ${BRAND}"/>
+<meta property="og:title" content="${esc(title)} - ${BRAND}"/>
 <meta property="og:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
 <meta property="og:type" content="website"/>
 <meta property="og:image" content="${LOGO_URL}"/>
 <meta name="twitter:card" content="summary"/>
-<meta name="twitter:title" content="${esc(title)} — ${BRAND}"/>
+<meta name="twitter:title" content="${esc(title)} - ${BRAND}"/>
 <meta name="twitter:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
 <meta name="twitter:image" content="${LOGO_URL}"/>
-<title>${esc(title)} — ${BRAND}</title>
+<title>${esc(title)} - ${BRAND}</title>
 <style>
   :root { color-scheme: dark; --accent:#2196f3; --accent-2:#64b5f6; --bg:#0b1020; --card:#131a2e; --border:rgba(255,255,255,.08); --text:#eef2f9; --muted:#94a3b8; }
   * { box-sizing: border-box; }
@@ -159,7 +159,7 @@ const homePageHtml = () => html(
   ${brandHeader("Direct download links for movies &amp; TV · by TMDB id")}
   <section class="hero">
     <h2>Every server.<br/>One link to download.</h2>
-    <p>Paste a TMDB id — or search by name — and <span class="accent">BIGREEL Downloader</span> gathers direct download links from all of our servers at once, best first.</p>
+    <p>Paste a TMDB id - or search by name - and <span class="accent">BIGREEL Downloader</span> gathers direct download links from all of our servers at once, best first.</p>
     <form method="get" action="/find" class="searchbar">
       <input type="text" name="q" placeholder="Movie or show name…" autofocus/>
       <input type="number" name="season" class="num" placeholder="S" min="1"/>
@@ -174,12 +174,12 @@ const homePageHtml = () => html(
   </section>
   <div class="grid">
     <div class="card"><h3>🎬 Movies</h3><p>One TMDB id brings back every quality &amp; mirror from every server.</p><code>/dl/movie/{tmdb_id}</code></div>
-    <div class="card"><h3>📺 TV Shows</h3><p>Season + episode aware — links for exactly the episode you want.</p><code>/dl/tv/{tmdb_id}/{s}/{e}</code></div>
+    <div class="card"><h3>📺 TV Shows</h3><p>Season + episode aware - links for exactly the episode you want.</p><code>/dl/tv/{tmdb_id}/{s}/{e}</code></div>
     <div class="card"><h3>⚡ JSON API</h3><p>Same data as JSON for your stream site to fetch links directly.</p><code>/api/dl/movie/{tmdb_id}</code></div>
   </div>
   <section class="section">
     <h2>Servers</h2>
-    <p class="lead">Results are merged from all servers, ranked — the best leads.</p>
+    <p class="lead">Results are merged from all servers, ranked - the best leads.</p>
     <details class="server" open>
       <summary><span class="badge top">Best</span> Elite Server<span class="chev">▾</span></summary>
       <div class="empty">Top-ranked library · quality packs 480p → 2160p × x264/x265 · resolved file-host links</div>
@@ -285,7 +285,7 @@ const searchPageHtml = () => html(
 
 // Normalize {providers} -> {servers} for the shared results template.
 // Note: the scrapers' internal `post` URL (the source-site page) is deliberately
-// dropped — we never expose where each server's links come from.
+// dropped - we never expose where each server's links come from.
 function providersToServers(providers) {
   return (providers || []).map((p) => ({
     server: { name: p.name || p.provider },
@@ -429,7 +429,7 @@ export async function handleRequest(req, res) {
     }
     const body = html(
       "Error",
-      `<main><div class="err">${status} — ${String(err.message || "Internal error").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</div></main>`
+      `<main><div class="err">${status} - ${String(err.message || "Internal error").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</div></main>`
     );
     res.writeHead(status, {
       "Content-Type": "text/html; charset=utf-8",

@@ -1,8 +1,8 @@
-// nxsha.mjs — client for the nxsha.app direct-download API.
+// nxsha.mjs - client for the nxsha.app direct-download API.
 //
 // How it works (reverse-engineered from the site's own frontend bundle):
 //   1. The web app (web.nxsha.app) guards /dl/* pages with a purely client-side
-//      "security check" (add two random numbers). No token is produced — once you
+//      "security check" (add two random numbers). No token is produced - once you
 //      "verify", the frontend just starts calling the API.
 //   2. Every API call is `GET /api/{servers,sources}?q=<ciphertext>` where
 //      `q` is a JSON payload encrypted with CryptoJS.AES.encrypt(msg, passphrase)
@@ -14,7 +14,7 @@
 //
 // The passphrase below is literally present in the site's public JS:
 //   String.fromCharCode(83,56,120,33,74,107,52,90,80,49,117,71,56,36,109,121)
-// This is obfuscation, not real security — the API is effectively public.
+// This is obfuscation, not real security - the API is effectively public.
 
 import crypto from "node:crypto";
 

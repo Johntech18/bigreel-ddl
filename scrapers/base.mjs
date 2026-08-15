@@ -1,4 +1,4 @@
-// scrapers/base.mjs — shared plumbing for the self-hosted scrapers.
+// scrapers/base.mjs - shared plumbing for the self-hosted scrapers.
 //
 // These modules scrape public index pages from the same source sites nxsha's
 // own backend wraps (filmyfly, hdhub4u-branded mirrors, …). The whole module

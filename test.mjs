@@ -1,4 +1,4 @@
-// Smoke test — exercises the nxsha protocol and the self-hosted scrapers
+// Smoke test - exercises the nxsha protocol and the self-hosted scrapers
 // against live sites. Usage: npm test   (needs network access)
 
 import { encodeData, decodeData, getServers, getSources, getDirectLinks } from "./nxsha.mjs";
@@ -32,7 +32,7 @@ const netCheck = async (name, fn, ok) => {
 // --- unit: helpers ------------------------------------------------------------
 {
   check("searchQuery strips punctuation", searchQuery("Spider-Man: Brand New Day") === "spider man brand new day");
-  check("normalizeTitle folds case/punct", normalizeTitle("Star Wars: Ep. IV — A New Hope") === "star wars ep iv a new hope");
+  check("normalizeTitle folds case/punct", normalizeTitle("Star Wars: Ep. IV - A New Hope") === "star wars ep iv a new hope");
   const exact = { tmdbId: "1", type: "movie", title: "Spider-Man: Brand New Day", year: "2026" };
   const other = { tmdbId: "2", type: "movie", title: "Spider-Man: No Way Home", year: "2021" };
   const tv = { tmdbId: "3", type: "tv", title: "Spider-Man: Brand New Day", year: "2026" };
@@ -152,7 +152,7 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
 }
 
 {
-  // a111477: indexer — use a movie that is known to be listed (No Way Home).
+  // a111477: indexer - use a movie that is known to be listed (No Way Home).
   const r = await a111477.scrapeMovie({ title: "Spider-Man: No Way Home", year: "2021" });
   console.log(`INFO  a111477: ${r.sources.length} sources (locked: ${r.sources.filter((s) => s.locked).length})`);
   check("a111477 indexes movie files with size/quality", r.sources.length > 0 && r.sources[0].size !== undefined);
@@ -175,7 +175,7 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
 }
 
 {
-  // pahe: metadata-only provider — search + download box extraction. Every
+  // pahe: metadata-only provider - search + download box extraction. Every
   // source is a locked external shortener by design (no direct files).
   const m = await pahe.scrapeMovie({ title: "Deadpool & Wolverine", year: "2024" });
   if (m.error) {
@@ -184,7 +184,7 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
     console.log(`INFO  pahe: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
     check("pahe extracts quality/mirror metadata", m.sources.length > 0 && m.sources[0].quality !== undefined && m.sources[0].host !== undefined);
     // Every source is either an unresolved locked shortener or a resolved
-    // file-host URL — never a bare shortener with locked:false.
+    // file-host URL - never a bare shortener with locked:false.
     const bad = m.sources.filter((s) => !s.locked && /tpi\.li|oii\.la|tei\.ai|uii\.io|ouo\.io|exe\.io|aylink/.test(s.url || ""));
     check("pahe resolved sources point at real file hosts", bad.length === 0);
     const f = await pahe.scrapeMovie({ title: "Deadpool & Wolverine", year: "2024", minQuality: "1080p" });

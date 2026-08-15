@@ -1,10 +1,10 @@
-// scrapers/filesdl.mjs — resolver for the filesdl.cloud / filesdl.top file host
+// scrapers/filesdl.mjs - resolver for the filesdl.cloud / filesdl.top file host
 // used by hdhub4u-branded WordPress mirrors.
 //
 // Findings (Aug 2026): filesdl.in 302-redirects to filesdl.top, which sits
 // behind Cloudflare's *managed* JS challenge ("Just a moment...",
 // challenges.cloudflare.com). Full browser headers and TLS impersonation
-// (curl_cffi) both fail — the challenge requires real JS execution, so plain
+// (curl_cffi) both fail - the challenge requires real JS execution, so plain
 // HTTP cannot unlock it.
 //
 // Strategy:
@@ -68,7 +68,7 @@ export async function resolveFilesdl(fileUrl, { flareSolverrUrl = process.env.FL
       return {
         locked: true,
         url: fileUrl,
-        note: "Cloudflare challenge — set FLARESOLVERR_URL to a running flaresolverr to unlock",
+        note: "This is a direct download link with less or no ads, pass through cloudflare challenge and your download starts!",
         status,
       };
     }

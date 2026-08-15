@@ -1,9 +1,9 @@
-// scrapers/hdhub4u.mjs — scraper for hdhub4u-branded WordPress mirrors
+// scrapers/hdhub4u.mjs - scraper for hdhub4u-branded WordPress mirrors
 // (e.g. filmmilf.xyz, "Hdhub4u Bollywood Filmyzilla And Filmyfly").
 //
 // Verified chain (filmmilf.xyz, Aug 2026):
 //   1. Search:  GET /?s=<query>   (WordPress)
-//   2. Post:    https://<site>/?p=<id> — content links to file hosts,
+//   2. Post:    https://<site>/?p=<id> - content links to file hosts,
 //               e.g. https://new1.filesdl.in/cloud/<shortid>
 //   3. filesdl: rotates to filesdl.top; final file page may require a
 //               session cookie/referer (best-effort: we follow the chain
@@ -36,7 +36,7 @@ export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label
         const { status, text } = await fetchChain(url);
         if (status !== 200) {
           lastFailure = { status, domain };
-          continue; // site blocked / moved — try the next mirror
+          continue; // site blocked / moved - try the next mirror
         }
         const posts = [];
         for (const { url: href, text: anchor } of extractLinks(text)) {
@@ -54,7 +54,7 @@ export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label
           }
         }
         if (posts.length) return { posts, base: domBase };
-        // Site served 200 but nothing matched — remember it, try remaining mirrors.
+        // Site served 200 but nothing matched - remember it, try remaining mirrors.
         lastFailure = { status: 200, domain, matched: 0 };
       } catch (err) {
         lastFailure = { domain, error: err?.cause?.code || err?.code || err.message };
@@ -116,7 +116,7 @@ export function makeHdhub4u({ domains = DEFAULT_DOMAINS, name = "hdhub4u", label
     return { provider: name, post: post.url, sources, errors: [] };
   }
 
-  // TV: same site pattern — episodes are sections inside the show's post(s).
+  // TV: same site pattern - episodes are sections inside the show's post(s).
   async function scrapeEpisode({ title, season, episode }) {
     if (!domains.length) return { provider: name, error: "no domains configured" };
     const seasonStr = String(season).padStart(2, "0");

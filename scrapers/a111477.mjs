@@ -1,6 +1,6 @@
-// scrapers/a111477.mjs — scraper for the static file indexer at a.111477.xyz.
+// scrapers/a111477.mjs - scraper for the static file indexer at a.111477.xyz.
 //
-// The site is a plain "Index of /" file listing — no search API, no JS app:
+// The site is a plain "Index of /" file listing - no search API, no JS app:
 //   /movies/        -> "Name (Year)/" directories (large page, ~10 MB)
 //   /tvs/           -> "Show Name/" or "Show Name (Year)/" directories
 //   <movie dir>/    -> file rows: "Name.1080p...mkv ⬇️ 4.7 GB" with a direct href
@@ -120,7 +120,7 @@ export function makeA111477({
       const { status, headers } = await fetchChain(url, { maxRedirects: 2 });
       const isCF = status === 403 && String(headers.get?.("server") || "").toLowerCase().includes("cloudflare");
       if (isCF) {
-        return { locked: true, note: "file link is Cloudflare-gated for bots — works in a browser; set FLARESOLVERR_URL to unlock" };
+        return { locked: true, note: "This is a direct download link with no ad, just pass through cloudflare challenge and you are good to go!" };
       }
       if (status >= 200 && status < 400) return { locked: false };
       return { locked: true, note: `file probe returned HTTP ${status}` };

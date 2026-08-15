@@ -1,15 +1,15 @@
-// scrapers/pahe.mjs — metadata-only provider for pahe.ink (WordPress movie/TV site).
+// scrapers/pahe.mjs - metadata-only provider for pahe.ink (WordPress movie/TV site).
 //
 // Pahe is a big, well-organized library (movies + TV season packs, per-quality
 // download boxes with 480p/720p/1080p/2160p × x264/x265). The blog itself is
-// open — no Cloudflare on search or posts — but every download link on a post
+// open - no Cloudflare on search or posts - but every download link on a post
 // is an *ad-locker shortener* (teknoasian.com/?ht=, tpi.li/<slug>, oii.la/…,
 // intercelestial.com, linegee.net, …) that reveals the real file URL only after
 // a human clicks through captchas + "Generate Link" hops in a browser.
 //
 // So this provider is deliberately metadata-only: it searches pahe, resolves
 // the right post, and extracts the download box (quality, size, mirror host,
-// shortener URL) — with every source flagged `locked: true` and a note saying
+// shortener URL) - with every source flagged `locked: true` and a note saying
 // the link is an external locked shortener. It tells you *what exists* and
 // gives you the exact link to open manually, without pretending to have direct
 // file URLs. Verified chain (Aug 2026):
@@ -23,12 +23,12 @@ const DEFAULT_DOMAINS = ["pahe.ink"];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Mirror button codes pahe uses (host abbreviations) — anything else on the
+// Mirror button codes pahe uses (host abbreviations) - anything else on the
 // box is ignored so nav/social links don't leak into sources.
 const MIRROR_RE = /^(SD|GD|MG|1D|1F|PD|VF|GF|HD|4K|UHD)$/i;
 
 // Ad-locker shortener hosts pahe's mirror buttons point at. Their pages embed
-// the real destination URL in <input name="token"> as base64 — decode it and
+// the real destination URL in <input name="token"> as base64 - decode it and
 // the link is unlocked (this is what "Bypass Pahe Links"-style userscripts
 // do in the browser; we do it server-side). See resolveToken() below.
 const SHORTLINK_HOSTS = new Set([
@@ -36,7 +36,7 @@ const SHORTLINK_HOSTS = new Set([
 ]);
 
 // Decode the destination URL from a shortener's token value. The token is
-// `<hex>…<slug>1508<base64(url)>` — the last chunk after "aHR0c" (base64 of
+// `<hex>…<slug>1508<base64(url)>` - the last chunk after "aHR0c" (base64 of
 // "http") is the real URL. Falls back to a whole-string base64 scan.
 export function resolveToken(raw) {
   const s = String(raw || "").trim();
@@ -91,7 +91,7 @@ function filterMinQuality(sources, minQuality) {
 export function makePahe({
   domains = DEFAULT_DOMAINS,
   name = "pahe",
-  label = "Pahe.in (metadata — links are external locked shorteners)",
+  label = "Pahe.in (metadata - links are external locked shorteners)",
   paceMs = 400,
   shortlinkPaceMs = 900,
   maxFiles = 48,
@@ -146,7 +146,7 @@ export function makePahe({
       if (!dest) continue;
       s.url = dest;
       s.locked = false;
-      s.note = `resolved from pahe's ad-locker shortener — file hosted on ${new URL(dest).hostname}`;
+      s.note = `resolved from pahe's ad-locker shortener - file hosted on ${new URL(dest).hostname}`;
     }
     return sources;
   }
@@ -169,7 +169,7 @@ export function makePahe({
         }
         if (posts.length) return { posts, base: domBase };
       } catch {
-        // mirror unreachable — try the next one
+        // mirror unreachable - try the next one
       }
     }
     return { posts: [], base: domains[0] ? `https://${domains[0]}` : null };
@@ -185,7 +185,7 @@ export function makePahe({
     const sources = [];
     // Match the start of the box's <div> (indexOf would land mid-tag and break
     // the first heading). The box can also repeat (separate sections per
-    // source), so stop at "Last Updated"/"Related posts"/</article> — NOT the
+    // source), so stop at "Last Updated"/"Related posts"/</article> - NOT the
     // first </div>.
     const dlTag = /<div[^>]*class="[^"]*\bbox download\b/;
     const dlStart = html.search(dlTag);
@@ -215,7 +215,7 @@ export function makePahe({
           host: button,
           isEmbed: false,
           locked: true,
-          note: "external locked link — opens pahe's ad-locker shortener; resolve in a browser (captcha + Generate Link hops)",
+          note: "this is an external locked link and opens an ad-locker shortener; the real file URL is revealed only after clicking through captchas + 'Generate Link' hops in a browser",
         });
       }
       // quality heading at the start of the chunk: "480p x264 | 550 MB",
@@ -271,7 +271,7 @@ export function makePahe({
     if (!sources.length) return { provider: name, post: post.url, error: "No download box found on post (or none at the requested quality)", sources: [] };
     // Make the season-pack nature explicit in each label.
     for (const s of sources) {
-      s.note = `whole-season pack (S${season ?? "?"}) — ${s.note}`;
+      s.note = `whole-season pack (S${season ?? "?"}) - ${s.note}`;
     }
     return { provider: name, post: post.url, sources };
   }

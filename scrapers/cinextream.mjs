@@ -1,4 +1,4 @@
-// scrapers/cinextream.mjs — scraper for the ddl.cinextream.cc API.
+// scrapers/cinextream.mjs - scraper for the ddl.cinextream.cc API.
 //
 // ddl.cinextream.cc is a Next.js frontend whose backend is the same file
 // indexer as a.111477.xyz: every resolved file URL points at
@@ -10,11 +10,11 @@
 //   GET /api/meta/movie/{tmdbId}         -> { enc }  title/poster/overview
 //   GET /api/subs/movie/{tmdbId}         -> { enc }  subtitles
 //
-// Every response is `{"enc":"<hex>"}` — AES-encrypted with the key baked into
+// Every response is `{"enc":"<hex>"}` - AES-encrypted with the key baked into
 // their own /wasm/codec.wasm (a 5.7 KB WebAssembly module). Node runs wasm
 // natively, so we instantiate their codec and call its exported `decrypt`
 // (srcPtr=256, srcLen, keyPtr=0, keyLen=32, dstPtr) exactly like the browser
-// does — zero npm dependencies. The key layout is validated at runtime by the
+// does - zero npm dependencies. The key layout is validated at runtime by the
 // wasm itself (decrypt fails on bad data), so no key copy lives in this repo.
 //
 // File links are the same Cloudflare-gated a.111477.xyz URLs the indexer
@@ -89,7 +89,7 @@ export function makeCinextream({
       const { status, headers } = await fetchChain(url, { maxRedirects: 2 });
       const isCF = status === 403 && String(headers.get?.("server") || "").toLowerCase().includes("cloudflare");
       if (isCF) {
-        return { locked: true, note: "file link is Cloudflare-gated for bots — works in a browser; set FLARESOLVERR_URL to unlock" };
+        return { locked: true, note: "This is a direct download link with no ad, just pass through cloudflare challenge and you are good to go!" };
       }
       if (status >= 200 && status < 400) return { locked: false };
       return { locked: true, note: `file probe returned HTTP ${status}` };

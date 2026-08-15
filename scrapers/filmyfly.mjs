@@ -1,4 +1,4 @@
-// scrapers/filmyfly.mjs — scraper for FilmyFly mirrors (DataLife Engine sites).
+// scrapers/filmyfly.mjs - scraper for FilmyFly mirrors (DataLife Engine sites).
 //
 // Verified resolution chain (filmsay.com, Aug 2026):
 //   1. Search:  GET /index.php?do=search&subaction=search&story=<query>
@@ -9,7 +9,7 @@
 //   4. server.php?id=N: 302-redirects straight to the real file URL
 //               (verified: video-downloads.googleusercontent.com, hubcloud.cx, …)
 //
-// We never need to decrypt the go.php payload — the site resolves it for us.
+// We never need to decrypt the go.php payload - the site resolves it for us.
 
 import { fetchChain, extractLinks, titleMatches, absolute, REQUEST_TIMEOUT_MS, UA, CookieJar, searchQuery } from "./base.mjs";
 
@@ -54,7 +54,7 @@ export function makeFilmyfly({
         }
         if (posts.length) return { posts, base: domBase };
       } catch {
-        // mirror unreachable — try the next one
+        // mirror unreachable - try the next one
       }
     }
     return { posts: [], base: domains[0] ? `https://${domains[0]}` : null };

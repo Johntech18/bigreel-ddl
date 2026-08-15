@@ -1,4 +1,4 @@
-// scrapers/index.mjs — provider registry + unified scrape API.
+// scrapers/index.mjs - provider registry + unified scrape API.
 //
 // Each provider is a scraper module exposing:
 //   scrapeMovie({ title, year }) -> { provider, sources, errors, post? }
@@ -42,7 +42,7 @@ export function providerNames() {
   return Object.keys(registry);
 }
 
-// Friendly display names shown in the UI — the real source sites (pahe.ink,
+// Friendly display names shown in the UI - the real source sites (pahe.ink,
 // filmyfly mirrors, …) are internal implementation details, not user-facing
 // brand names.
 const FRIENDLY = {
@@ -219,7 +219,7 @@ export async function findAndScrape({ q, season, episode, year, minQuality, conc
 
   if (match.type === "tv" && !(season && episode)) {
     return {
-      error: `"${match.title}" is a TV show — add ?season=&episode= to scrape an episode.`,
+      error: `"${match.title}" is a TV show - add ?season=&episode= to scrape an episode.`,
       match,
       results,
       providers: [],
