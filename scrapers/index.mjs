@@ -42,6 +42,33 @@ export function providerNames() {
   return Object.keys(registry);
 }
 
+// Friendly display names shown in the UI — the real source sites (pahe.ink,
+// filmyfly mirrors, …) are internal implementation details, not user-facing
+// brand names.
+const FRIENDLY = {
+  pahe: "Elite Server",
+  cinextream: "Prime Server",
+  a111477: "Index Server",
+  filmyfly: "Swift Server",
+  hdhub4u: "Nexus Server",
+};
+
+// UI ordering: Elite (pahe) leads the server list, then the rest.
+const PROVIDER_ORDER = ["pahe", "cinextream", "a111477", "filmyfly", "hdhub4u"];
+
+export function friendlyName(provider) {
+  return FRIENDLY[provider] || provider;
+}
+
+// Sort a provider list so Elite-first, unknown providers trail at the end.
+export function sortProviders(list) {
+  return [...(list || [])].sort((a, b) => {
+    const ia = PROVIDER_ORDER.indexOf(a.provider);
+    const ib = PROVIDER_ORDER.indexOf(b.provider);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}
+
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 function tmdbKey() {
@@ -123,7 +150,7 @@ export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
-  return { providers: results };
+  return { providers: sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) }))) };
 }
 
 // Scrape a single TV episode from all registered providers.
@@ -150,7 +177,7 @@ export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
-  return { providers: results };
+  return { providers: sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) }))) };
 }
 
 // Score a search candidate against the query so we can pick the best match.
@@ -198,7 +225,7 @@ export async function findAndScrape({ q, season, episode, year, minQuality, conc
 // get { source: "self", name } and nxsha servers get { source: "nxsha", name }
 // (their display name) so same-named scrapers (e.g. hdhub4u) stay distinct.
 export function mergeProviders(selfProviders, nxshaServers) {
-  const self = (selfProviders || []).map((p) => ({ ...p, source: "self", name: p.provider }));
+  const self = (selfProviders || []).map((p) => ({ ...p, source: "self", name: friendlyName(p.provider) }));
   const nxsha = (nxshaServers || []).map((s) => ({
     source: "nxsha",
     provider: s.provider,
@@ -207,7 +234,39 @@ export function mergeProviders(selfProviders, nxshaServers) {
     error: s.error || null,
     post: null,
   }));
-  return [...self, ...nxsha];
+  return sortProviders([...self, ...nxsha]);
+}
+
+// Scrape a movie/TV entry by tmdbId alone, merging self-hosted scrapers and
+// nxsha providers. This is what the bigreel stream site calls: it knows only
+// the tmdb id, and the downloader resolves + fetches links. Requires
+// TMDB_API_KEY (or title/year query params); without them it falls back to
+// the nxsha proxy so /dl/* still returns results.
+export async function scrapeMergedById({ tmdbId, type, season, episode, title, year, minQuality, includeNxsha = true, concurrency = 2 } = {}, { dl = getDirectLinks } = {}) {
+  let meta = await resolveMetadata({ tmdbId, type, season, title, year });
+  if (!meta) {
+    if (!includeNxsha) {
+      return { error: "Need title/year, or a TMDB_API_KEY to resolve tmdbId → title/year.", providers: [] };
+    }
+    try {
+      const media = { tmdbId: String(tmdbId), type, season: season || "1", episode: episode || "1" };
+      const dlResult = await dl(media, { concurrency: 4 });
+      return { match: null, providers: mergeProviders([], dlResult.servers) };
+    } catch (e) {
+      return { error: e.message, providers: [] };
+    }
+  }
+  const selfResult = type === "tv"
+    ? await scrapeEpisode({ ...meta, season, episode, minQuality }, { concurrency })
+    : await scrapeMovie({ ...meta, minQuality }, { concurrency });
+  const selfProviders = selfResult.providers || [];
+  if (!includeNxsha) return { ...selfResult, match: meta };
+  try {
+    const dlResult = await dl({ tmdbId: meta.tmdbId, type, season, episode }, { concurrency: 4 });
+    return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, dlResult.servers) };
+  } catch (e) {
+    return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, []), nxshaError: e.message };
+  }
 }
 
 // findAndScrape + nxsha proxy merged into one response. `includeNxsha: false`

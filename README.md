@@ -1,11 +1,22 @@
-# nxsha-dl-server
+# BIGREEL Downloader
 
-A zero-dependency Node.js server that aggregates **direct download links** for movies and TV shows using TMDB ids, sourced from [nxsha.app](https://web.nxsha.app).
-
-It mirrors nxsha's own URL scheme:
+A zero-dependency Node.js server that aggregates **direct download links** for movies and TV shows using TMDB ids. It merges **self-hosted scrapers** (Elite, Prime, Index, Swift, Nexus) with [nxsha.app](https://web.nxsha.app) partner sources, and mirrors nxsha's URL scheme so a stream site can deep-link straight by TMDB id:
 
 - Movie: `GET /dl/movie/{tmdb_id}`
 - TV:    `GET /dl/tv/{tmdb_id}/{season_number}/{episode_number}`
+
+**Server naming:** the real source sites are hidden behind friendly names — the best (pahe) is **Elite Server** and always leads the list:
+
+| Friendly name | Backend | Notes |
+|---|---|---|
+| **Elite Server** | pahe | Best overall · quality packs 480p → 2160p × x264/x265 · shortener tokens auto-resolved to file hosts |
+| **Prime Server** | cinextream | Rich metadata: 4K / H.265 / Atmos / TrueHD |
+| **Index Server** | a111477 | Raw file indexer · direct .mkv/.mp4 rows |
+| **Swift Server** | filmyfly | Multi-mirror host chains · fast direct links |
+| **Nexus Server** | hdhub4u | WordPress mirrors · quality-tagged file links |
+| (nxsha providers) | nxsha.app proxy | Partner sources merged in, tagged `source: "nxsha"` |
+
+`/dl/*` and `/api/dl/*` now fetch the **merged** result: self-hosted scrapers plus nxsha, ranked Elite-first.
 
 ## Quick start
 
@@ -22,9 +33,9 @@ Then open:
 
 | Route | Description |
 |---|---|
-| `GET /dl/movie/:tmdbId` | HTML page listing download links from every provider |
+| `GET /dl/movie/:tmdbId` | HTML page: merged links from self-hosted servers + nxsha, Elite-first |
 | `GET /dl/tv/:tmdbId/:season/:episode` | HTML page for an episode |
-| `GET /api/dl/movie/:tmdbId` | Same data as JSON (`servers[].sources[]`) |
+| `GET /api/dl/movie/:tmdbId` | Same data as JSON (`providers[].sources[]`, `match`) |
 | `GET /api/dl/tv/:tmdbId/:season/:episode` | Same data as JSON |
 | `GET /api/servers?type=movie&tmdbId=…` | Raw, decrypted response from nxsha's `/api/servers` |
 | `GET /api/sources?provider=mbox&type=movie&tmdbId=…` | Raw, decrypted response from nxsha's `/api/sources` |
@@ -54,8 +65,14 @@ show and no `season`/`episode` was given, it tells you so instead of scraping no
 
 **`/api/find` merges both backends** — the self-hosted scrapers *and* nxsha's proxy
 providers — into one `providers[]` list. Each entry carries a `source` field
-(`"self"` or `"nxsha"`) and a display `name`, so same-named scrapers stay distinct
-(e.g. self `hdhub4u` vs nxsha's `4k-bk`). Use `&nxsha=0` for self-only results.
+(`"self"` or `"nxsha"`) and a friendly display `name` (Elite Server, Prime Server, …),
+so same-named scrapers stay distinct (e.g. self `hdhub4u` → Nexus Server vs nxsha's
+`4k-bb`). Self-hosted providers are ranked Elite-first. Use `&nxsha=0` for self-only results.
+
+**`/dl/*` works the same way from just a TMDB id** — that's the integration point for a
+stream site: `GET /dl/movie/533535` resolves the id via `TMDB_API_KEY`, scrapes every
+self-hosted server, merges nxsha, and renders the list. Without `TMDB_API_KEY` it falls
+back to the nxsha proxy only.
 
 ## Self-hosted scrapers (`scrapers/`)
 
@@ -277,7 +294,8 @@ The repo is Vercel-ready: `api/index.mjs` re-exports the exact same request
 handler as the standalone server, and `vercel.json` rewrites every route
 (`/dl/*`, `/find`, `/api/*`, …) to that single serverless function. The
 in-memory cache and session jars work per instance, so nothing needs external
-state.
+state. Set `TMDB_API_KEY` so `/dl/*` can resolve tmdbIds to titles and scrape
+the self-hosted servers.
 
 1. Push this folder to a Git repo (or use `vercel --cwd .` from the folder).
 2. Log in: `vercel login`
