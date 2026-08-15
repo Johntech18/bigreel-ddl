@@ -344,7 +344,8 @@ export async function handleRequest(req, res) {
       const episode = url.searchParams.get("episode");
       const year = url.searchParams.get("year");
       const minQuality = url.searchParams.get("min_quality") || undefined;
-      const includeNxsha = url.searchParams.get("nxsha") !== "0";
+      // NXSHA_ENABLED=0 disables the nxsha proxy globally; ?nxsha=0 does it per request.
+      const includeNxsha = url.searchParams.get("nxsha") !== "0" && process.env.NXSHA_ENABLED !== "0";
       const body = cached(`find:${q}:${season || ""}:${episode || ""}:${year || ""}:${minQuality || ""}:${includeNxsha}`, FIND_CACHE_TTL_MS, () =>
         findAndScrapeMerged({ q, season, episode, year, minQuality, includeNxsha }));
       return json(res, 200, await body);
@@ -399,8 +400,9 @@ export async function handleRequest(req, res) {
       const title = url.searchParams.get("title");
       const year = url.searchParams.get("year");
       const minQuality = url.searchParams.get("min_quality") || undefined;
-      const cacheKey = `dl:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}`;
-      const loader = () => scrapeMergedById({ ...media, title, year, minQuality });
+      const includeNxsha = url.searchParams.get("nxsha") !== "0" && process.env.NXSHA_ENABLED !== "0";
+      const cacheKey = `dl:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}:${includeNxsha}`;
+      const loader = () => scrapeMergedById({ ...media, title, year, minQuality, includeNxsha });
       const result = await cached(cacheKey, FIND_CACHE_TTL_MS, loader);
       if (isApi) {
         return json(res, 200, result);

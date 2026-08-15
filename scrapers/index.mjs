@@ -140,9 +140,30 @@ export async function resolveMetadata({ tmdbId, type, season, title, year }) {
   return null;
 }
 
+// Cap how long any single provider may spend so one dead/blocked site can't
+// stall the whole response. Env-tunable: PROVIDER_TIMEOUT_MS (default 12 s).
+function providerTimeoutMs() {
+  return Number(process.env.PROVIDER_TIMEOUT_MS || 12_000);
+}
+
+// Resolve with `fallback` if `promise` hasn't settled within `ms`.
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+// Run all providers in parallel so the response only waits for the slowest
+// one. Lower via SCRAPE_CONCURRENCY if source sites rate-limit bursts.
+function scrapeConcurrency() {
+  return Number(process.env.SCRAPE_CONCURRENCY || 6);
+}
+
 // Scrape a movie from all registered providers. `opts` carries either
 // { title, year } or { tmdbId, type } (the latter needs TMDB_API_KEY).
-export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
+export async function scrapeMovie(opts, { concurrency = scrapeConcurrency() } = {}) {
   const meta = await resolveMetadata(opts);
   if (!meta) {
     return {
@@ -153,12 +174,17 @@ export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
   const names = providerNames();
   const results = new Array(names.length);
   let idx = 0;
+  const timeoutMs = providerTimeoutMs();
   const worker = async () => {
     while (idx < names.length) {
       const i = idx++;
       const p = registry[names[i]];
       try {
-        results[i] = await p.scrapeMovie({ ...meta, minQuality: opts.minQuality });
+        results[i] = await withTimeout(
+          p.scrapeMovie({ ...meta, minQuality: opts.minQuality }),
+          timeoutMs,
+          { provider: p.name, error: `timed out after ${timeoutMs}ms`, sources: [], timedOut: true }
+        );
       } catch (e) {
         results[i] = { provider: p.name, error: e.message, sources: [] };
       }
@@ -169,7 +195,7 @@ export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
 }
 
 // Scrape a single TV episode from all registered providers.
-export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
+export async function scrapeEpisode(opts, { concurrency = scrapeConcurrency() } = {}) {
   const meta = await resolveMetadata(opts);
   if (!meta) {
     return {
@@ -180,12 +206,17 @@ export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
   const names = providerNames();
   const results = new Array(names.length);
   let idx = 0;
+  const timeoutMs = providerTimeoutMs();
   const worker = async () => {
     while (idx < names.length) {
       const i = idx++;
       const p = registry[names[i]];
       try {
-        results[i] = await p.scrapeEpisode({ title: meta.title, year: meta.year, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality });
+        results[i] = await withTimeout(
+          p.scrapeEpisode({ title: meta.title, year: meta.year, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality }),
+          timeoutMs,
+          { provider: p.name, error: `timed out after ${timeoutMs}ms`, sources: [], timedOut: true }
+        );
       } catch (e) {
         results[i] = { provider: p.name, error: e.message, sources: [] };
       }
@@ -209,18 +240,23 @@ export function scoreCandidate(c, q, { wantTv, year }) {
   return s;
 }
 
-// Title -> tmdbId -> scrape. The convenience endpoint behind `/api/find`.
-export async function findAndScrape({ q, season, episode, year, minQuality, concurrency = 2 } = {}) {
+// TMDB search + best-match pick, shared by findAndScrape and the merged flow
+// so the merge can scrape once and run nxsha in parallel.
+async function pickMatch(q, { season, episode, year }) {
   const { results, error } = await tmdbSearch(q);
-  if (error) return { error, providers: [] };
-  if (!results?.length) return { error: `No TMDB matches for "${q}"`, providers: [] };
-
+  if (error) return { error, results: [] };
+  if (!results?.length) return { error: `No TMDB matches for "${q}"`, results: [] };
   const wantTv = Boolean(season && episode);
   const scored = results
     .map((c) => ({ c, s: scoreCandidate(c, q, { wantTv, year }) }))
     .sort((a, b) => b.s - a.s);
-  const match = scored[0].c;
+  return { results, match: scored[0].c };
+}
 
+// Title -> tmdbId -> scrape. The convenience endpoint behind `/api/find`.
+export async function findAndScrape({ q, season, episode, year, minQuality, concurrency = scrapeConcurrency() } = {}) {
+  const { results, match, error } = await pickMatch(q, { season, episode, year });
+  if (error) return { error, providers: [] };
   if (match.type === "tv" && !(season && episode)) {
     return {
       error: `"${match.title}" is a TV show - add ?season=&episode= to scrape an episode.`,
@@ -229,7 +265,6 @@ export async function findAndScrape({ q, season, episode, year, minQuality, conc
       providers: [],
     };
   }
-
   const providers = match.type === "tv"
     ? await scrapeEpisode({ tmdbId: match.tmdbId, type: "tv", season, episode, minQuality }, { concurrency })
     : await scrapeMovie({ tmdbId: match.tmdbId, type: "movie", minQuality }, { concurrency });
@@ -256,7 +291,7 @@ export function mergeProviders(selfProviders, nxshaServers) {
 // the tmdb id, and the downloader resolves + fetches links. Requires
 // TMDB_API_KEY (or title/year query params); without them it falls back to
 // the nxsha proxy so /dl/* still returns results.
-export async function scrapeMergedById({ tmdbId, type, season, episode, title, year, minQuality, includeNxsha = true, concurrency = 2 } = {}, { dl = getDirectLinks } = {}) {
+export async function scrapeMergedById({ tmdbId, type, season, episode, title, year, minQuality, includeNxsha = true, concurrency = scrapeConcurrency() } = {}, { dl = getDirectLinks } = {}) {
   let meta = await resolveMetadata({ tmdbId, type, season, title, year });
   if (!meta) {
     if (!includeNxsha) {
@@ -270,37 +305,49 @@ export async function scrapeMergedById({ tmdbId, type, season, episode, title, y
       return { error: e.message, providers: [] };
     }
   }
-  const selfResult = type === "tv"
-    ? await scrapeEpisode({ ...meta, season, episode, minQuality }, { concurrency })
-    : await scrapeMovie({ ...meta, minQuality }, { concurrency });
+  const selfTask = type === "tv"
+    ? scrapeEpisode({ ...meta, season, episode, minQuality }, { concurrency })
+    : scrapeMovie({ ...meta, minQuality }, { concurrency });
+  if (!includeNxsha) return { ...(await selfTask), match: meta };
+  // Run the nxsha proxy in parallel with the self scrapers so it never adds
+  // to the critical path.
+  const [selfRes, dlRes] = await Promise.allSettled([
+    selfTask,
+    dl({ tmdbId: meta.tmdbId, type, season, episode }, { concurrency: 4 }),
+  ]);
+  const selfResult = selfRes.status === "fulfilled" ? selfRes.value : { error: selfRes.reason?.message, providers: [] };
   const selfProviders = selfResult.providers || [];
-  if (!includeNxsha) return { ...selfResult, match: meta };
-  try {
-    const dlResult = await dl({ tmdbId: meta.tmdbId, type, season, episode }, { concurrency: 4 });
-    return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, dlResult.servers) };
-  } catch (e) {
-    return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, []), nxshaError: e.message };
+  if (dlRes.status === "rejected") {
+    return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, []), nxshaError: dlRes.reason?.message };
   }
+  return { ...selfResult, match: meta, providers: mergeProviders(selfProviders, dlRes.value.servers) };
 }
 
 // findAndScrape + nxsha proxy merged into one response. `includeNxsha: false`
 // keeps the self-only behavior. `dl` is injectable for tests.
-export async function findAndScrapeMerged({ q, season, episode, year, minQuality, includeNxsha = true, concurrency = 2 } = {}, { dl = getDirectLinks } = {}) {
-  const base = await findAndScrape({ q, season, episode, year, minQuality, concurrency });
-  const selfProviders = base.providers || [];
-  if (!base.match || !includeNxsha) {
-    return { ...base, providers: mergeProviders(selfProviders, []) };
+export async function findAndScrapeMerged({ q, season, episode, year, minQuality, includeNxsha = true, concurrency = scrapeConcurrency() } = {}, { dl = getDirectLinks } = {}) {
+  const { results, match, error } = await pickMatch(q, { season, episode, year });
+  if (error) return { error, providers: [] };
+  if (match.type === "tv" && !(season && episode)) {
+    return { error: `"${match.title}" is a TV show - add ?season=&episode= to scrape an episode.`, match, results, providers: [] };
   }
-  if (base.match.type === "tv" && !(season && episode)) {
-    return { ...base, providers: mergeProviders(selfProviders, []) };
+  const selfTask = match.type === "tv"
+    ? scrapeEpisode({ tmdbId: match.tmdbId, type: "tv", season, episode, minQuality }, { concurrency })
+    : scrapeMovie({ tmdbId: match.tmdbId, type: "movie", minQuality }, { concurrency });
+  if (!includeNxsha) {
+    const sr = await selfTask;
+    return { ...sr, match, results };
   }
-  try {
-    const media = base.match.type === "tv"
-      ? { tmdbId: base.match.tmdbId, type: "tv", season, episode }
-      : { tmdbId: base.match.tmdbId, type: "movie" };
-    const dlResult = await dl(media, { concurrency: 4 });
-    return { ...base, providers: mergeProviders(selfProviders, dlResult.servers) };
-  } catch (e) {
-    return { ...base, providers: mergeProviders(selfProviders, []), nxshaError: e.message };
+  // nxsha proxy runs in parallel with the self scrapers - it never adds to
+  // the critical path.
+  const media = match.type === "tv"
+    ? { tmdbId: match.tmdbId, type: "tv", season, episode }
+    : { tmdbId: match.tmdbId, type: "movie" };
+  const [selfRes, dlRes] = await Promise.allSettled([selfTask, dl(media, { concurrency: 4 })]);
+  const selfResult = selfRes.status === "fulfilled" ? selfRes.value : { error: selfRes.reason?.message, providers: [] };
+  const merged = selfResult.providers || [];
+  if (dlRes.status === "rejected") {
+    return { ...selfResult, match, results, providers: mergeProviders(merged, []), nxshaError: dlRes.reason?.message };
   }
+  return { ...selfResult, match, results, providers: mergeProviders(merged, dlRes.value.servers) };
 }

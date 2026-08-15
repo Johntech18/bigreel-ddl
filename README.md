@@ -321,6 +321,9 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `NXSHA_BASE_URL` | `https://web.nxsha.app` | Upstream base |
 | `CACHE_TTL_MS` | `60000` | In-memory cache TTL for aggregator responses |
 | `FIND_CACHE_TTL_MS` | `300000` | Cache TTL for `/api/find` (it scrapes every provider, so it caches longer) |
+| `SCRAPE_CONCURRENCY` | `6` | How many providers scrape in parallel; the response waits only for the slowest. Lower it if source sites rate-limit bursts |
+| `PROVIDER_TIMEOUT_MS` | `12000` | Hard cap per provider; a dead/blocked site can't stall the whole response |
+| `NXSHA_ENABLED` | `1` | Set `0` to disable the nxsha proxy backend entirely (self-hosted servers only). Per-request: `?nxsha=0` |
 | `TMDB_API_KEY` | - | Free key from themoviedb.org; enables `/api/search`, `/api/find`, and tmdbId → title resolution |
 | `FLARESOLVERR_URL` | - | Optional; URL of a running flaresolverr, used to unlock Cloudflare-challenged file hosts (filesdl) |
 | `FILMYFLY_DOMAINS` | `filmsay.com` | Comma-separated mirror domains for the filmyfly scraper; tries each in order |
