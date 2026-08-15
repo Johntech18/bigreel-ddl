@@ -21,6 +21,7 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
 const BRAND = "BIGREEL Downloader";
 const ACCENT = "#2196f3";
+const LOGO_URL = "https://i.postimg.cc/3RHNvYbT/logo-new.png";
 
 // --- tiny TTL cache so repeated page loads don't hammer the upstream ----------
 const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MS || 60_000);
@@ -77,6 +78,17 @@ const html = (title, body) => `<!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="theme-color" content="${ACCENT}"/>
+<link rel="icon" type="image/png" href="${LOGO_URL}"/>
+<meta name="description" content="BIGREEL Downloader — direct download links for movies and TV shows, by TMDB id."/>
+<meta property="og:site_name" content="${BRAND}"/>
+<meta property="og:title" content="${esc(title)} — ${BRAND}"/>
+<meta property="og:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
+<meta property="og:type" content="website"/>
+<meta property="og:image" content="${LOGO_URL}"/>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="${esc(title)} — ${BRAND}"/>
+<meta name="twitter:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
+<meta name="twitter:image" content="${LOGO_URL}"/>
 <title>${esc(title)} — ${BRAND}</title>
 <style>
   :root { color-scheme: dark; --accent:#2196f3; --accent-2:#64b5f6; --bg:#0b1020; --card:#131a2e; --border:rgba(255,255,255,.08); --text:#eef2f9; --muted:#94a3b8; }
@@ -85,7 +97,7 @@ const html = (title, body) => `<!DOCTYPE html>
   main { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
   a { color: var(--accent-2); }
   header { display:flex; align-items:center; gap:12px; margin: 10px 0 26px; }
-  .logo { width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,#1565c0,#42a5f5); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; color:#fff; box-shadow:0 6px 20px rgba(33,150,243,.45); }
+  .logo { width:42px; height:42px; border-radius:12px; object-fit:cover; box-shadow:0 6px 20px rgba(33,150,243,.45); }
   h1 { font-size:22px; margin:0; letter-spacing:-.02em; }
   .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
   .hero { text-align:center; padding: 42px 0 26px; }
@@ -138,7 +150,7 @@ ${body}
 </html>`;
 
 const brandHeader = (sub) => `
-  <header><span class="logo">⬇</span><div><h1>${BRAND}</h1><div class="sub">${sub}</div></div></header>`;
+  <header><img class="logo" src="${LOGO_URL}" alt="BIGREEL"/><div><h1>${BRAND}</h1><div class="sub">${sub}</div></div></header>`;
 
 // Home page: hero, search, endpoint cards, server list.
 const homePageHtml = () => html(
@@ -221,7 +233,7 @@ const pageHtml = ({ title, apiUrl, data: initialData, error: initialError, match
         let servers = data.servers || null;
         if (!servers && data.providers) {
           servers = data.providers.map(function (p) {
-            return { server: { name: (p.name || p.provider) + (p.post ? " · " + p.post : "") }, provider: p.provider, sources: p.sources || [], error: p.error || null, source: p.source || "self" };
+            return { server: { name: p.name || p.provider }, provider: p.provider, sources: p.sources || [], error: p.error || null, source: p.source || "self" };
           });
         }
         const withSources = (servers || []).filter(s => s.sources.length || s.error);
@@ -272,9 +284,11 @@ const searchPageHtml = () => html(
 );
 
 // Normalize {providers} -> {servers} for the shared results template.
+// Note: the scrapers' internal `post` URL (the source-site page) is deliberately
+// dropped — we never expose where each server's links come from.
 function providersToServers(providers) {
   return (providers || []).map((p) => ({
-    server: { name: `${p.name || p.provider}${p.post ? ` · ${p.post}` : ""}` },
+    server: { name: p.name || p.provider },
     provider: p.provider,
     sources: p.sources || [],
     error: p.error || null,

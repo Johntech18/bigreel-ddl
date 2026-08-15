@@ -69,6 +69,17 @@ export function sortProviders(list) {
   });
 }
 
+// Public-facing provider entries must never expose where a server's links come
+// from: drop the scrapers' internal `post` URL (the source-site page). The JSON
+// and HTML layers render `name` only, so the friendly server names are all the
+// client ever sees.
+export function sanitizeProviders(list) {
+  return (list || []).map((p) => {
+    const { post, ...rest } = p;
+    return rest;
+  });
+}
+
 const TMDB_BASE = "https://api.themoviedb.org/3";
 
 function tmdbKey() {
@@ -150,7 +161,7 @@ export async function scrapeMovie(opts, { concurrency = 2 } = {}) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
-  return { providers: sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) }))) };
+  return { providers: sanitizeProviders(sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) })))) };
 }
 
 // Scrape a single TV episode from all registered providers.
@@ -177,7 +188,7 @@ export async function scrapeEpisode(opts, { concurrency = 2 } = {}) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
-  return { providers: sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) }))) };
+  return { providers: sanitizeProviders(sortProviders(results.map((r) => ({ ...r, name: friendlyName(r.provider) })))) };
 }
 
 // Score a search candidate against the query so we can pick the best match.
@@ -225,14 +236,13 @@ export async function findAndScrape({ q, season, episode, year, minQuality, conc
 // get { source: "self", name } and nxsha servers get { source: "nxsha", name }
 // (their display name) so same-named scrapers (e.g. hdhub4u) stay distinct.
 export function mergeProviders(selfProviders, nxshaServers) {
-  const self = (selfProviders || []).map((p) => ({ ...p, source: "self", name: friendlyName(p.provider) }));
+  const self = sanitizeProviders((selfProviders || []).map((p) => ({ ...p, source: "self", name: friendlyName(p.provider) })));
   const nxsha = (nxshaServers || []).map((s) => ({
     source: "nxsha",
     provider: s.provider,
     name: s.server?.name || s.provider,
     sources: s.sources || [],
     error: s.error || null,
-    post: null,
   }));
   return sortProviders([...self, ...nxsha]);
 }
