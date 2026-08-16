@@ -142,8 +142,21 @@ export async function resolveMetadata({ tmdbId, type, season, title, year }) {
 
 // Cap how long any single provider may spend so one dead/blocked site can't
 // stall the whole response. Env-tunable: PROVIDER_TIMEOUT_MS (default 12 s).
+// The productive-but-slow providers (Elite = pahe, Indian = movierulz) get a
+// higher ceiling - pahe alone paces ~12 shortener resolutions, movierulz walks
+// category pages - tunable per provider via PAHE_TIMEOUT_MS / MOVIERULZ_TIMEOUT_MS.
 function providerTimeoutMs() {
   return Number(process.env.PROVIDER_TIMEOUT_MS || 12_000);
+}
+
+const PROVIDER_TIMEOUT_OVERRIDES = {
+  pahe: () => Number(process.env.PAHE_TIMEOUT_MS || 25_000),
+  movierulz: () => Number(process.env.MOVIERULZ_TIMEOUT_MS || 25_000),
+};
+
+function providerTimeoutMsFor(provider) {
+  const override = PROVIDER_TIMEOUT_OVERRIDES[provider];
+  return override ? override() : providerTimeoutMs();
 }
 
 // Resolve with `fallback` if `promise` hasn't settled within `ms`.
@@ -174,11 +187,11 @@ export async function scrapeMovie(opts, { concurrency = scrapeConcurrency() } = 
   const names = providerNames();
   const results = new Array(names.length);
   let idx = 0;
-  const timeoutMs = providerTimeoutMs();
   const worker = async () => {
     while (idx < names.length) {
       const i = idx++;
       const p = registry[names[i]];
+      const timeoutMs = providerTimeoutMsFor(p.name);
       try {
         results[i] = await withTimeout(
           p.scrapeMovie({ ...meta, minQuality: opts.minQuality }),
@@ -206,11 +219,11 @@ export async function scrapeEpisode(opts, { concurrency = scrapeConcurrency() } 
   const names = providerNames();
   const results = new Array(names.length);
   let idx = 0;
-  const timeoutMs = providerTimeoutMs();
   const worker = async () => {
     while (idx < names.length) {
       const i = idx++;
       const p = registry[names[i]];
+      const timeoutMs = providerTimeoutMsFor(p.name);
       try {
         results[i] = await withTimeout(
           p.scrapeEpisode({ title: meta.title, year: meta.year, season: opts.season, episode: opts.episode, tmdbId: meta.tmdbId, minQuality: opts.minQuality }),

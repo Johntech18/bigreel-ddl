@@ -323,6 +323,8 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `FIND_CACHE_TTL_MS` | `300000` | Cache TTL for `/api/find` (it scrapes every provider, so it caches longer) |
 | `SCRAPE_CONCURRENCY` | `6` | How many providers scrape in parallel; the response waits only for the slowest. Lower it if source sites rate-limit bursts |
 | `PROVIDER_TIMEOUT_MS` | `12000` | Hard cap per provider; a dead/blocked site can't stall the whole response |
+| `PAHE_TIMEOUT_MS` | `25000` | Per-provider cap for Elite Server (pahe) - it paces ~12 shortener resolutions, so it gets extra headroom |
+| `MOVIERULZ_TIMEOUT_MS` | `25000` | Per-provider cap for Indian Server (movierulz) - discovery walks category pages, so it gets extra headroom |
 | `NXSHA_ENABLED` | `1` | Set `0` to disable the nxsha proxy backend entirely (self-hosted servers only). Per-request: `?nxsha=0` |
 | `TMDB_API_KEY` | - | Free key from themoviedb.org; enables `/api/search`, `/api/find`, and tmdbId → title resolution |
 | `FLARESOLVERR_URL` | - | Optional; URL of a running flaresolverr, used to unlock Cloudflare-challenged file hosts (filesdl) |
