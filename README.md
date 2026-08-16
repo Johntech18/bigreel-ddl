@@ -15,7 +15,6 @@ A zero-dependency Node.js server that aggregates **direct download links** for m
 | **Index Server** | a111477 | Raw file indexer · direct .mkv/.mp4 rows |
 | **Swift Server** | filmyfly | Multi-mirror host chains · fast direct links |
 | **Nexus Server** | hdhub4u | WordPress mirrors · quality-tagged file links |
-| **Naija Server** | 9jarocks.net | Nollywood/Hollywood/Asian dramas · searchable · per-episode + quality rows (all browser-gated) |
 | (nxsha providers) | nxsha.app proxy | Partner sources merged in, tagged `source: "nxsha"` |
 
 `/dl/*` and `/api/dl/*` now fetch the **merged** result: self-hosted scrapers plus nxsha, ranked Elite-first.
@@ -304,7 +303,7 @@ the self-hosted servers.
 2. Log in: `vercel login`
 3. Set env vars in the Vercel dashboard (Settings → Environment Variables)
    - at minimum `TMDB_API_KEY` (free, themoviedb.org). Optional:   `FLARESOLVERR_URL`,
-   `FILMYFLY_DOMAINS`, `HDHUB4U_DOMAINS`, `A111477_DOMAINS`, `CINEXTREAM_DOMAINS`, `PAHE_DOMAINS`, `MOVIERULZ_DOMAINS`, `9JAROCKS_DOMAINS`.
+   `FILMYFLY_DOMAINS`, `HDHUB4U_DOMAINS`, `A111477_DOMAINS`, `CINEXTREAM_DOMAINS`, `PAHE_DOMAINS`, `MOVIERULZ_DOMAINS`.
 4. `vercel --prod`
 
 Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
@@ -333,7 +332,6 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `CINEXTREAM_DOMAINS` | `ddl.cinextream.cc` | Domain(s) for the cinextream API provider (same a.111477.xyz files, TMDB-id lookup) |
 | `PAHE_DOMAINS` | `pahe.ink` | Domain(s) for the pahe provider; shortener links are auto-unlocked via token decode (up to 12 per scrape) |
 | `MOVIERULZ_DOMAINS` | `www.5movierulz.watch` | Domain(s) for the Indian server (movierulz); search is unavailable server-side so discovery walks the site's category pages |
-| `9JAROCKS_DOMAINS` | `9jarocks.net` | Domain(s) for the Naija server (9jarocks); WordPress search works server-side, all links are browser-gated |
 
 ## How nxsha.app works (reverse-engineered)
 

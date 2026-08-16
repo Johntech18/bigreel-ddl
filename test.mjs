@@ -9,7 +9,6 @@ import { a111477 } from "./scrapers/a111477.mjs";
 import { cinextream } from "./scrapers/cinextream.mjs";
 import { pahe, resolveToken } from "./scrapers/pahe.mjs";
 import { movierulz } from "./scrapers/movierulz.mjs";
-import { ninejarocks } from "./scrapers/9jarocks.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -261,33 +260,6 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
   } else {
     console.log(`INFO  movierulz tv: ${e.sources.length} sources (locked: ${e.sources.filter((s) => s.locked).length})`);
     check("movierulz tv finds season-pack magnets", e.sources.some((s) => s.url.startsWith("magnet:")));
-  }
-}
-
-{
-  // 9jarocks: Nigerian WordPress site. Search works server-side; every link
-  // is a browser-gated file-host / JS shortener -> metadata-only, all locked.
-  const m = await ninejarocks.scrapeMovie({ title: "The Avengers", year: "2012" });
-  if (m.error) {
-    skip("9jarocks finds post and extracts links", m.error);
-  } else {
-    console.log(`INFO  9jarocks: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
-    check("9jarocks movie links are all locked", m.sources.every((s) => s.locked === true));
-    check("9jarocks labels carry quality from filename",
-      m.sources.some((s) => /\d{3,4}p/i.test(s.label || "")));
-    const f = await ninejarocks.scrapeMovie({ title: "The Avengers", year: "2012", minQuality: "1080p" });
-    if (!f.error) {
-      check("9jarocks min_quality filters sources",
-        f.sources.every((s) => !s.quality || /1080p|2160p|4k/i.test(s.quality || "")));
-    }
-  }
-  const e = await ninejarocks.scrapeEpisode({ title: "Avengers Assemble", season: 5, episode: 1 });
-  if (e.error) {
-    skip("9jarocks tv finds episode rows", e.error);
-  } else {
-    console.log(`INFO  9jarocks tv: ${e.sources.length} sources`);
-    check("9jarocks tv filters to the requested episode",
-      e.sources.some((s) => /S5E01/i.test(s.label || "")) && !e.sources.some((s) => /S5E0[2-9]/i.test(s.label || "")));
   }
 }
 

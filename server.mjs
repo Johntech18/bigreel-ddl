@@ -15,7 +15,7 @@
 import http from "node:http";
 import { pathToFileURL } from "node:url";
 import { getServers, getSources } from "./nxsha.mjs";
-import { scrapeMovie, scrapeEpisode, tmdbSearch, findAndScrapeMerged, scrapeMergedById } from "./scrapers/index.mjs";
+import { scrapeMovie, scrapeEpisode, tmdbSearch, findAndScrapeMerged, scrapeMergedById, resolveMetadata } from "./scrapers/index.mjs";
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -374,23 +374,27 @@ export async function handleRequest(req, res) {
       const title = url.searchParams.get("title");
       const year = url.searchParams.get("year");
       const minQuality = url.searchParams.get("min_quality") || undefined;
-      const cacheKey = `scrape:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}`;
-      const loader = () => media.type === "tv"
-        ? scrapeEpisode({ tmdbId: media.tmdbId, type: "tv", season: media.season, episode: media.episode, title, year, minQuality })
-        : scrapeMovie({ tmdbId: media.tmdbId, type: "movie", title, year, minQuality });
-      const result = await cached(cacheKey, CACHE_TTL_MS, loader);
-      if (isApi) {
-        return json(res, 200, result);
-      }
       const urlQuery = [];
       if (title) urlQuery.push(`title=${encodeURIComponent(title)}`);
       if (year) urlQuery.push(`year=${encodeURIComponent(year)}`);
       if (minQuality) urlQuery.push(`min_quality=${encodeURIComponent(minQuality)}`);
+      const apiPath = `/api/scrape/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${urlQuery.length ? `?${urlQuery.join("&")}` : ""}`;
+      if (isApi) {
+        const cacheKey = `scrape:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}`;
+        const loader = () => media.type === "tv"
+          ? scrapeEpisode({ tmdbId: media.tmdbId, type: "tv", season: media.season, episode: media.episode, title, year, minQuality })
+          : scrapeMovie({ tmdbId: media.tmdbId, type: "movie", title, year, minQuality });
+        const result = await cached(cacheKey, CACHE_TTL_MS, loader);
+        return json(res, 200, result);
+      }
+      // HTML: respond instantly with the same loading flow as /find - the
+      // client fetches /api/scrape/* and renders once sources arrive.
+      const meta = await resolveMetadata({ tmdbId: media.tmdbId, type: media.type, title, year });
+      const baseTitle = meta?.title || title || `${media.type === "tv" ? `${media.tmdbId} S${media.season}E${media.episode}` : media.tmdbId}`;
       return res.end(pageHtml({
-        title: `${title || `${media.type === "tv" ? `${media.tmdbId} S${media.season}E${media.episode}` : media.tmdbId}`}${minQuality ? ` · ${minQuality}+` : ""}`,
-        apiUrl: `/api/scrape/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${urlQuery.length ? `?${urlQuery.join("&")}` : ""}`,
-        data: { servers: providersToServers(result.providers) },
-        matchTitle: title || undefined,
+        title: `${baseTitle}${minQuality ? ` · ${minQuality}+` : ""}`,
+        apiUrl: apiPath,
+        matchTitle: baseTitle,
       }));
     }
 
@@ -401,24 +405,27 @@ export async function handleRequest(req, res) {
       const year = url.searchParams.get("year");
       const minQuality = url.searchParams.get("min_quality") || undefined;
       const includeNxsha = url.searchParams.get("nxsha") !== "0" && process.env.NXSHA_ENABLED !== "0";
-      const cacheKey = `dl:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}:${includeNxsha}`;
-      const loader = () => scrapeMergedById({ ...media, title, year, minQuality, includeNxsha });
-      const result = await cached(cacheKey, FIND_CACHE_TTL_MS, loader);
-      if (isApi) {
-        return json(res, 200, result);
-      }
-      const baseTitle = result.match?.title
-        ? `${result.match.title}${result.match.year ? ` (${result.match.year})` : ""}`
-        : (title || `${media.type === "tv" ? `${media.tmdbId} · S${media.season}E${media.episode}` : media.tmdbId}`);
-      const pageTitle = media.type === "tv" ? `${baseTitle} · S${media.season}E${media.episode}` : baseTitle;
       const urlQuery = [];
       if (title) urlQuery.push(`title=${encodeURIComponent(title)}`);
       if (year) urlQuery.push(`year=${encodeURIComponent(year)}`);
       if (minQuality) urlQuery.push(`min_quality=${encodeURIComponent(minQuality)}`);
+      const apiPath = `/api/dl/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${urlQuery.length ? `?${urlQuery.join("&")}` : ""}`;
+      if (isApi) {
+        const cacheKey = `dl:${media.type}:${media.tmdbId}:${media.season}:${media.episode}:${title || ""}:${year || ""}:${minQuality || ""}:${includeNxsha}`;
+        const loader = () => scrapeMergedById({ ...media, title, year, minQuality, includeNxsha });
+        const result = await cached(cacheKey, FIND_CACHE_TTL_MS, loader);
+        return json(res, 200, result);
+      }
+      // HTML: respond instantly with the same loading flow as /find - the
+      // client fetches /api/dl/* and renders once sources arrive.
+      const meta = await resolveMetadata({ tmdbId: media.tmdbId, type: media.type, season: media.season, title, year });
+      const baseTitle = meta?.title
+        ? `${meta.title}${meta.year ? ` (${meta.year})` : ""}`
+        : (title || `${media.type === "tv" ? `${media.tmdbId} · S${media.season}E${media.episode}` : media.tmdbId}`);
+      const pageTitle = media.type === "tv" ? `${baseTitle} · S${media.season}E${media.episode}` : baseTitle;
       return res.end(pageHtml({
         title: pageTitle,
-        apiUrl: `/api/dl/${media.type}/${media.tmdbId}${media.type === "tv" ? `/${media.season}/${media.episode}` : ""}${urlQuery.length ? `?${urlQuery.join("&")}` : ""}`,
-        data: { servers: providersToServers(result.providers) },
+        apiUrl: apiPath,
         matchTitle: baseTitle,
       }));
     }
