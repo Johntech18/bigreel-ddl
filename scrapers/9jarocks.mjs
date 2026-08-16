@@ -118,25 +118,73 @@ export function make9jarocks({
     return out;
   }
 
+  // 9jarocks sits behind Cloudflare (Server: cloudflare, cf-ray). Residential
+  // IPs pass, but datacenter ranges (Vercel/AWS) get challenged - the direct
+  // request then returns a 403/503 challenge page. When that happens and
+  // FLARESOLVERR_URL is set (same solver filesdl uses), route the search
+  // through flaresolverr, which renders the page in a real browser.
+  function isChallengeResponse(status, text) {
+    const body = String(text || "");
+    if (status === 200 && body.length > 5000) {
+      return /cf-challenge|challenge-platform|cf_chl|just a moment|enable javascript/i.test(body.slice(0, 20_000));
+    }
+    return true;
+  }
+
+  async function fetchSearchPage(url) {
+    const flare = (process.env.FLARESOLVERR_URL || "").replace(/\/+$/, "");
+    const notes = [];
+    try {
+      const r = await fetchWithRetry(url);
+      if (!isChallengeResponse(r.status, r.text)) return { text: r.text };
+      notes.push(r.status === 200 ? "direct: cloudflare challenge" : `direct: HTTP ${r.status}`);
+    } catch (e) {
+      notes.push(`direct: ${e.message}`);
+    }
+    if (flare) {
+      try {
+        const res = await fetch(`${flare}/v1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60_000 }),
+        });
+        if (res.ok) {
+          const j = await res.json();
+          const html = j?.solution?.response || j?.solution?.content || "";
+          if (html && html.length > 5000) return { text: html, via: "flaresolverr" };
+          notes.push(`flaresolverr: HTTP ${res.status}${html ? " (empty page)" : ""}`);
+        } else {
+          notes.push(`flaresolverr: HTTP ${res.status}`);
+        }
+      } catch (e) {
+        notes.push(`flaresolverr: ${e.message}`);
+      }
+    }
+    return { error: notes.join("; ") || "failed" };
+  }
+
   async function searchPosts(title) {
     if (!base) return [];
     const t = normalizeTitle(title);
     // /findx?search= is the site's real search route; /?s= 403s after a few
     // hits. Try findx first, fall back to the WordPress endpoint.
-    let text = null;
-    for (const url of [`${base}/findx?search=${encodeURIComponent(title)}`, `${base}/?s=${encodeURIComponent(title)}`]) {
-      try {
-        const r = await fetchWithRetry(url);
-        if (r.status === 200) {
-          text = r.text;
-          break;
-        }
-      } catch {
-        /* try the next search endpoint */
+    const urls = [`${base}/findx?search=${encodeURIComponent(title)}`, `${base}/?s=${encodeURIComponent(title)}`];
+    const failures = [];
+    let sawPage = false;
+    for (const url of urls) {
+      const r = await fetchSearchPage(url);
+      if (r.error) {
+        failures.push(`${url.includes("/findx") ? "findx" : "?s="}: ${r.error}`);
+        continue;
       }
+      sawPage = true;
+      const posts = parsePosts(r.text).filter((p) => normalizeTitle(p.title).includes(t));
+      if (posts.length) return posts;
     }
-    if (!text) throw new Error(`Search failed for "${title}"`);
-    return parsePosts(text).filter((p) => normalizeTitle(p.title).includes(t));
+    if (!sawPage) {
+      throw new Error(`Search failed for "${title}" (${failures.join("; ")})`);
+    }
+    return [];
   }
 
   // Best match: exact normalized title, then title-with-year, then first.
