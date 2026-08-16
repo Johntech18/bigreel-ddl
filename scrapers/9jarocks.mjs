@@ -15,8 +15,11 @@
 // (like pahe's locked mode): quality labels come from the filenames
 // ("The.Avengers.2012.540p.x265.AAC" -> 540p), and all sources are flagged
 // locked with a note. The loadedfiles token chain rotates on every request and
-// never serves bytes to a plain client; the FAST SERVER link is an obfuscated
-// JS auto-form - both need a real browser.
+// never serves bytes to a plain client - it needs a real browser.
+//
+// Search endpoint: the WordPress /?s= path 403s after a few hits, but the
+// site's own search route /findx?search=<query> works and returns the same
+// result markup (fall back to /?s= if findx is unavailable).
 
 import { fetchChain, normalizeTitle, decodeEntities } from "./base.mjs";
 
@@ -102,7 +105,7 @@ export function make9jarocks({
     const seen = new Set();
     for (const m of String(html).matchAll(/<a([^>]*)href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/gi)) {
       const url = m[2];
-      if (!/-id\d+\.html$/i.test(url)) continue;
+      if (!/-id\d+\.html?$/i.test(url)) continue;
       let title = decodeEntities(m[4].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
       if (!title) {
         const attr = (m[1] + " " + m[3]).match(/title="([^"]+)"/i);
@@ -118,7 +121,21 @@ export function make9jarocks({
   async function searchPosts(title) {
     if (!base) return [];
     const t = normalizeTitle(title);
-    const { text } = await fetchWithRetry(`${base}/?s=${encodeURIComponent(title)}`);
+    // /findx?search= is the site's real search route; /?s= 403s after a few
+    // hits. Try findx first, fall back to the WordPress endpoint.
+    let text = null;
+    for (const url of [`${base}/findx?search=${encodeURIComponent(title)}`, `${base}/?s=${encodeURIComponent(title)}`]) {
+      try {
+        const r = await fetchWithRetry(url);
+        if (r.status === 200) {
+          text = r.text;
+          break;
+        }
+      } catch {
+        /* try the next search endpoint */
+      }
+    }
+    if (!text) throw new Error(`Search failed for "${title}"`);
     return parsePosts(text).filter((p) => normalizeTitle(p.title).includes(t));
   }
 
@@ -214,20 +231,9 @@ export function make9jarocks({
           locked: true,
           note: lockedNote,
         });
-      } else if (/FAST SERVER/i.test(inner) || !FILE_HOSTS.has(host)) {
-        // The FAST SERVER shortener (or any non-file-host link).
-        sources.push({
-          provider: name,
-          url: href,
-          label: "FAST SERVER",
-          quality: "",
-          size: "",
-          host,
-          isEmbed: false,
-          locked: true,
-          note: "JS auto-form shortener - open in a browser to reach the download",
-        });
       }
+      // Non-file-host links (the "FAST SERVER" ad shortener, etc.) are
+      // intentionally dropped - they are ads, not downloads.
     }
     return sources;
   }
