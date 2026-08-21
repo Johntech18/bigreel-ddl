@@ -14,6 +14,7 @@ import { makeCinextream, cinextream as defaultCinextream } from "./cinextream.mj
 import { makePahe, pahe as defaultPahe } from "./pahe.mjs";
 import { makeMovierulz, movierulz as defaultMovierulz } from "./movierulz.mjs";
 import { makeMynetnaija, mynetnaija as defaultMynetnaija } from "./mynetnaija.mjs";
+import { makeNaijaprey, naijaprey as defaultNaijaprey } from "./naijaprey.mjs";
 import { normalizeTitle } from "./base.mjs";
 import { getDirectLinks } from "../nxsha.mjs";
 
@@ -33,6 +34,7 @@ const cinextreamDomains = envDomains("CINEXTREAM_DOMAINS");
 const paheDomains = envDomains("PAHE_DOMAINS");
 const movierulzDomains = envDomains("MOVIERULZ_DOMAINS");
 const mynetnaijaDomain = process.env.MYNETNAIJA_DOMAIN || null;
+const naijapreyDomain = process.env.NAIJAPREY_DOMAIN || null;
 
 export const registry = {
   filmyfly: filmyflyDomains ? makeFilmyfly({ domains: filmyflyDomains }) : defaultFilmyfly,
@@ -42,6 +44,7 @@ export const registry = {
   pahe: paheDomains ? makePahe({ domains: paheDomains }) : defaultPahe,
   movierulz: movierulzDomains ? makeMovierulz({ domains: movierulzDomains }) : defaultMovierulz,
   mynetnaija: mynetnaijaDomain ? makeMynetnaija({ domain: mynetnaijaDomain }) : defaultMynetnaija,
+  naijaprey: naijapreyDomain ? makeNaijaprey({ domain: naijapreyDomain }) : defaultNaijaprey,
 };
 
 export function providerNames() {
@@ -54,6 +57,7 @@ export function providerNames() {
 const FRIENDLY = {
   pahe: "Elite Server",
   mynetnaija: "Naija Server",
+  naijaprey: "Elite Naija Server",
   movierulz: "Indian Server",
   cinextream: "Prime Server",
   a111477: "Index Server",
@@ -62,7 +66,7 @@ const FRIENDLY = {
 };
 
 // UI ordering: Elite (pahe) leads the server list, then the rest.
-const PROVIDER_ORDER = ["pahe", "mynetnaija", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u"];
+const PROVIDER_ORDER = ["pahe", "mynetnaija", "naijaprey", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u"];
 
 export function friendlyName(provider) {
   return FRIENDLY[provider] || provider;

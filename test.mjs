@@ -10,6 +10,7 @@ import { cinextream } from "./scrapers/cinextream.mjs";
 import { pahe, resolveToken } from "./scrapers/pahe.mjs";
 import { movierulz } from "./scrapers/movierulz.mjs";
 import { mynetnaija } from "./scrapers/mynetnaija.mjs";
+import { naijaprey } from "./scrapers/naijaprey.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -286,6 +287,29 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
   // Also test search
   const posts = await mynetnaija.searchPosts("Mutiny", "2026");
   check("mynetnaija search finds posts", posts.length > 0, JSON.stringify(posts).slice(0, 100));
+}
+
+{
+  // naijaprey: WordPress site with download chain: naijaprey -> np-downloader -> wildshare.net
+  const m = await naijaprey.scrapeMovie({ title: "Mutiny", year: "2026" });
+  if (m.error) {
+    skip("naijaprey finds post and extracts links", m.error);
+  } else {
+    console.log(`INFO  naijaprey: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("naijaprey finds post via WP REST API", m.sources.length > 0);
+    check("naijaprey extracts wildshare.net links",
+      m.sources.some((s) => /wildshare\.net/.test(s.url)));
+    check("naijaprey sources carry file size",
+      m.sources.some((s) => s.size !== null && s.size !== undefined));
+  }
+  // Also test series
+  const e = await naijaprey.scrapeEpisode({ title: "Deep Revenge", season: 1, episode: 1 });
+  if (e.error) {
+    skip("naijaprey finds series episodes", e.error);
+  } else {
+    check("naijaprey series finds episode links",
+      e.sources.length > 0 && e.sources.some((s) => /wildshare\.net/.test(s.url)));
+  }
 }
 
 // --- merged find (live, needs TMDB_API_KEY) -----------------------------------
