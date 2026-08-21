@@ -266,18 +266,20 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
 
 {
   // mynetnaija: WordPress site with WP REST API. Movies only, downloads via
-  // meetdownload.com → 7up.kissorgrab.com chain (all locked, needs browser).
-  // The /episode-download/ pages may be Cloudflare-protected (404 for bots).
+  // meetdownload.com links extracted from /episode-download/ pages (which
+  // return HTTP 404 but still serve valid content).
   const m = await mynetnaija.scrapeMovie({ title: "Ghost In The Cell", year: "2026" });
   if (m.error) {
     skip("mynetnaija finds post and extracts links", m.error);
   } else {
     console.log(`INFO  mynetnaija: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
     check("mynetnaija finds post via WP REST API", m.sources.length > 0);
+    check("mynetnaija extracts meetdownload links",
+      m.sources.some((s) => /meetdownload\.com/.test(s.url)));
     check("mynetnaija all sources are locked (needs browser)",
       m.sources.every((s) => s.locked === true));
-    check("mynetnaija source URLs are valid",
-      m.sources.every((s) => /^https?:\/\//.test(s.url)));
+    check("mynetnaija sources carry file size",
+      m.sources.some((s) => s.size !== null && s.size !== undefined));
   }
   // Also test search
   const posts = await mynetnaija.searchPosts("Mutiny", "2026");

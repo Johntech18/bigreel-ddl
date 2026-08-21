@@ -161,32 +161,38 @@ export function makeMynetnaija({
     }
 
     // Try to fetch the download page for meetdownload.com link
+    // Note: this page returns HTTP 404 but still serves valid content
     if (downloadPageUrl) {
       try {
-        const { status: dlStatus, text: dlHtml } = await fetchHtml(downloadPageUrl);
-        if (dlStatus === 200) {
+        const { text: dlHtml } = await fetchHtml(downloadPageUrl);
+        if (dlHtml) {
           const meetdownloadUrl = extractMeetdownloadUrl(dlHtml);
           if (meetdownloadUrl) {
+            // Always add meetdownload link — it's valuable even without fetching it
+            let fileSize = extractFileSize(dlHtml);
+            sources.push({
+              provider: name, url: meetdownloadUrl,
+              label: `${post.title} · meetdownload`,
+              quality: extractQuality(dlHtml, meetdownloadUrl),
+              size: fileSize, isEmbed: false, locked: true,
+              note: "meetdownload.com (needs browser)",
+            });
+            // Try to fetch meetdownload page for direct link + exact size
             try {
-              const { status: mdStatus, text: mdHtml } = await fetchHtml(meetdownloadUrl);
-              if (mdStatus === 200) {
-                const fileSize = extractFileSize(mdHtml);
-                const directUrl = extractDirectDownloadUrl(mdHtml);
-                if (directUrl) {
-                  sources.push({
-                    provider: name, url: directUrl,
-                    label: `${post.title} · direct`, quality: extractQuality(directUrl, mdHtml),
-                    size: fileSize, isEmbed: false, locked: true,
-                    note: "7up.kissorgrab.com (needs browser)",
-                  });
-                }
+              const { text: mdHtml } = await fetchHtml(meetdownloadUrl);
+              const mdSize = extractFileSize(mdHtml) || fileSize;
+              const directUrl = extractDirectDownloadUrl(mdHtml);
+              if (directUrl) {
                 sources.push({
-                  provider: name, url: meetdownloadUrl,
-                  label: `${post.title} · meetdownload`, quality: extractQuality(mdHtml, meetdownloadUrl),
-                  size: fileSize, isEmbed: false, locked: true,
-                  note: "meetdownload.com (needs browser)",
+                  provider: name, url: directUrl,
+                  label: `${post.title} · direct`,
+                  quality: extractQuality(directUrl, mdHtml),
+                  size: mdSize, isEmbed: false, locked: true,
+                  note: "7up.kissorgrab.com (needs browser)",
                 });
               }
+              // Update size if we got a better one from meetdownload
+              if (mdSize && sources[0]) sources[0].size = mdSize;
             } catch { /* meetdownload blocked */ }
           }
         }
