@@ -53,16 +53,16 @@ export function providerNames() {
 // brand names.
 const FRIENDLY = {
   pahe: "Elite Server",
+  mynetnaija: "Naija Server",
   movierulz: "Indian Server",
   cinextream: "Prime Server",
   a111477: "Index Server",
   filmyfly: "Swift Server",
   hdhub4u: "Nexus Server",
-  mynetnaija: "NetNaija Server",
 };
 
 // UI ordering: Elite (pahe) leads the server list, then the rest.
-const PROVIDER_ORDER = ["pahe", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u", "mynetnaija"];
+const PROVIDER_ORDER = ["pahe", "mynetnaija", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u"];
 
 export function friendlyName(provider) {
   return FRIENDLY[provider] || provider;

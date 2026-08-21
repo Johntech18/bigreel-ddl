@@ -211,7 +211,7 @@ const pageHtml = ({ title, apiUrl, data: initialData, error: initialError, match
   `<main>
   ${brandHeader("Direct download links")}
   ${matchTitle ? `<h2 style="font-size:20px;margin:0 0 18px;letter-spacing:-.01em">${esc(matchTitle)}</h2>` : ""}
-  <div id="app" class="loading">Fetching sources…</div>
+  <div id="app" class="loading">Fetching links from all servers…</style></div>
   <div class="disclaimer">BIGREEL Downloader is an indexer: it aggregates links to content hosted by third parties. It does not host or store any media files.</div>
   <script>
     const INITIAL = ${JSON.stringify(initialData || null)};
