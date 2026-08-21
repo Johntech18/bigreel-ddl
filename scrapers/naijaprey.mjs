@@ -232,7 +232,7 @@ export function makeNaijaprey({
       sources.push({
         provider: name, url: post.url,
         label: `${post.title}`, quality: "HD", size: null,
-        isEmbed: false, locked: true,
+        isEmbed: false, locked: false,
         note: "External Link (You will be taken to an external site to download)",
       });
     }
@@ -309,9 +309,9 @@ export function makeNaijaprey({
 
         sources.push({
           provider: name, url: t.wildshareUrl,
-          label: `${post.title} · ${FILE_DOMAIN}`,
-          quality, size: fileSize, isEmbed: false, locked: true,
-          note: "External link (needs browser to download)",
+          label: `${post.title} S${season}E${episode} · ${FILE_DOMAIN}`,
+          quality, size: fileSize, isEmbed: false, locked: false,
+          note: "External Direct Link (You will be taken to an external site to download)",
         });
       }
     } catch (e) {
