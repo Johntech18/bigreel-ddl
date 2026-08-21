@@ -279,12 +279,21 @@ export function makeNaijaprey({
         }
       }
 
-      // If season+episode requested, filter by filename (S01E01 pattern)
-      // The episode number is in the wildshare filename, not the np-downloader URL
+      // If season+episode requested, filter by np-downloader URL or filename
+      // np-downloader URLs: download-{title}-season-{N}-episode-{N}
+      // wildshare filenames: {Title}.S01E01.mkv
       let targets = resolved;
       if (season && episode && resolved.length > 1) {
-        const epPattern = new RegExp(`S0*${season}E0*${episode}`, "i");
-        const matched = resolved.filter((r) => r.filename && epPattern.test(r.filename));
+        const seasonNum = Number(season);
+        const episodeNum = Number(episode);
+        // Try np-downloader URL first (more reliable)
+        const urlPattern = new RegExp(`season-${seasonNum}-episode-${episodeNum}`, "i");
+        let matched = resolved.filter((r) => r.dlUrl && urlPattern.test(r.dlUrl));
+        // Fall back to wildshare filename (S01E01 pattern)
+        if (!matched.length) {
+          const filePattern = new RegExp(`S0*${season}E0*${episode}`, "i");
+          matched = resolved.filter((r) => r.filename && filePattern.test(r.filename));
+        }
         if (matched.length) targets = matched;
       }
 
