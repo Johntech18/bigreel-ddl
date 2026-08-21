@@ -279,6 +279,9 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
     check("mynetnaija source URLs are valid",
       m.sources.every((s) => /^https?:\/\//.test(s.url)));
   }
+  // Also test search
+  const posts = await mynetnaija.searchPosts("Mutiny", "2026");
+  check("mynetnaija search finds posts", posts.length > 0, JSON.stringify(posts).slice(0, 100));
 }
 
 // --- merged find (live, needs TMDB_API_KEY) -----------------------------------
