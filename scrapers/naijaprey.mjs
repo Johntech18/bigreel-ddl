@@ -264,42 +264,46 @@ export function makeNaijaprey({
       const postContent = postData?.content?.rendered || "";
       const downloadUrls = extractDownloadUrls(postContent);
 
-      // Find the specific episode URL
-      const epPattern = season && episode
-        ? new RegExp(`s0*${season}e0*${episode}`, "i")
-        : null;
-
-      let targetUrls = downloadUrls;
-      if (epPattern) {
-        const matched = downloadUrls.filter((u) => epPattern.test(u));
-        if (matched.length) targetUrls = matched;
-      }
-
-      // Process up to 3 episode links
-      for (const dlUrl of targetUrls.slice(0, 3)) {
+      // Resolve each download URL to its wildshare URL + filename
+      const resolved = [];
+      for (const dlUrl of downloadUrls) {
         try {
           const { text: dlHtml } = await fetchHtml(dlUrl);
           const wildshareUrl = extractWildshareUrl(dlHtml);
           if (wildshareUrl) {
-            let fileSize = null;
-            let quality = "HD";
-            try {
-              const { text: wlHtml } = await fetchHtml(wildshareUrl);
-              fileSize = extractWildshareSize(wlHtml);
-              const filename = extractFilename(wildshareUrl);
-              if (filename) quality = extractQuality(filename);
-            } catch { /* wildshare blocked */ }
-
-            sources.push({
-              provider: name, url: wildshareUrl,
-              label: `${post.title} · ${FILE_DOMAIN}`,
-              quality, size: fileSize, isEmbed: false, locked: true,
-              note: "External link (needs browser to download)",
-            });
+            const filename = extractFilename(wildshareUrl);
+            resolved.push({ dlUrl, wildshareUrl, filename });
           }
         } catch (e) {
           errors.push(`Download page fetch: ${e.message}`);
         }
+      }
+
+      // If season+episode requested, filter by filename (S01E01 pattern)
+      // The episode number is in the wildshare filename, not the np-downloader URL
+      let targets = resolved;
+      if (season && episode && resolved.length > 1) {
+        const epPattern = new RegExp(`S0*${season}E0*${episode}`, "i");
+        const matched = resolved.filter((r) => r.filename && epPattern.test(r.filename));
+        if (matched.length) targets = matched;
+      }
+
+      // Fetch file sizes from wildshare pages
+      for (const t of targets) {
+        let fileSize = null;
+        let quality = "HD";
+        try {
+          const { text: wlHtml } = await fetchHtml(t.wildshareUrl);
+          fileSize = extractWildshareSize(wlHtml);
+          if (t.filename) quality = extractQuality(t.filename);
+        } catch { /* wildshare blocked */ }
+
+        sources.push({
+          provider: name, url: t.wildshareUrl,
+          label: `${post.title} · ${FILE_DOMAIN}`,
+          quality, size: fileSize, isEmbed: false, locked: true,
+          note: "External link (needs browser to download)",
+        });
       }
     } catch (e) {
       errors.push(`API content fetch: ${e.message}`);
