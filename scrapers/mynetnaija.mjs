@@ -104,18 +104,78 @@ export function makeMynetnaija({
     return null;
   }
 
-  function extractDirectDownloadUrl(html) {
-    const match = html.match(
-      /location\.href\s*=\s*['"]+(https?:\/\/7up\.kissorgrab\.com\/dl\/[^'"]+)/i
+  function extractDirectDownloadUrls(html) {
+    const urls = [];
+    // Match any kissorgrab.com domain (7up, ol3, etc.)
+    const matches = html.matchAll(
+      /location\.href\s*=\s*['"]+(https?:\/\/[a-z0-9]+\.kissorgrab\.com\/dl\/[^'"]+)/gi
     );
-    if (match) return match[1];
+    for (const m of matches) {
+      const url = m[1];
+      // Skip subtitle links (contain .srt or -srt in the path)
+      if (/[-.]srt['"]?$/i.test(url)) continue;
+      if (!urls.includes(url)) urls.push(url);
+    }
+    return urls;
+  }
 
-    const altMatch = html.match(
-      /href=['"]+(https?:\/\/films\.waploaded\.com\/[^'"]+)/i
-    );
-    if (altMatch) return decodeHtmlEntities(altMatch[1]);
-
+  function extractWaploadedUrl(html) {
+    const match = html.match(/href="([^"]*films\.waploaded\.com\/movie\/[^'"]*)"/i);
+    if (match) return decodeHtmlEntities(match[1]);
     return null;
+  }
+
+  async function crawlWaploadedPage(waploadedUrl) {
+    try {
+      const { text: wlHtml } = await fetchHtml(waploadedUrl);
+      if (!wlHtml) return null;
+
+      // Extract /dl/{hash}/{slug} link from the waploaded page
+      const dlMatch = wlHtml.match(/href="(\/dl\/[^"]+)"/i);
+      if (!dlMatch) return null;
+
+      const dlPath = dlMatch[1];
+      const wlBase = new URL(waploadedUrl).origin;
+      const dlFullUrl = `${wlBase}${dlPath}`;
+
+      // Follow the /dl/ redirect to get the final meetdownload URL
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const res = await fetch(dlFullUrl, {
+          headers: { "User-Agent": UA },
+          redirect: "manual",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const redirectUrl = res.headers.get("location") || dlFullUrl;
+        clearTimeout(timer);
+
+        // Extract file size from waploaded meta description: [429.86MB]
+        let fileSize = null;
+        const sizeMatch = wlHtml.match(/\[(\d+(?:\.\d+)?\s*(?:MB|GB))\]/i);
+        if (sizeMatch) fileSize = sizeMatch[1];
+
+        // Extract quality from page title
+        let quality = "HD";
+        const titleMatch = wlHtml.match(/<title>([^<]+)<\/title>/i);
+        if (titleMatch) {
+          const t = titleMatch[1].toLowerCase();
+          if (/2160p|4k/i.test(t)) quality = "2160p";
+          else if (/1080p/i.test(t)) quality = "1080p";
+          else if (/720p/i.test(t)) quality = "720p";
+          else if (/mp4/i.test(t)) quality = "MP4";
+          else if (/mkv/i.test(t)) quality = "MKV";
+        }
+
+        return { url: redirectUrl, size: fileSize, quality, dlPath };
+      } catch {
+        clearTimeout(timer);
+        return null;
+      }
+    } catch {
+      return null;
+    }
   }
 
   function extractFileSize(html) {
@@ -177,12 +237,14 @@ export function makeMynetnaija({
               size: fileSize, isEmbed: false, locked: true,
               note: "External link (not a direct link and there's no ads)",
             });
-            // Try to fetch meetdownload page for direct link + exact size
+            // Try to fetch meetdownload page for direct link + waploaded link
             try {
               const { text: mdHtml } = await fetchHtml(meetdownloadUrl);
               const mdSize = extractFileSize(mdHtml) || fileSize;
-              const directUrl = extractDirectDownloadUrl(mdHtml);
-              if (directUrl) {
+
+              // Extract direct download links (kissorgrab.com)
+              const directUrls = extractDirectDownloadUrls(mdHtml);
+              for (const directUrl of directUrls) {
                 sources.push({
                   provider: name, url: directUrl,
                   label: `${post.title} · direct`,
@@ -191,6 +253,31 @@ export function makeMynetnaija({
                   note: "Direct Link resolved and found - file hosted on " + new URL(directUrl).hostname,
                 });
               }
+
+              // Extract waploaded link and resolve it
+              const waploadedUrl = extractWaploadedUrl(mdHtml);
+              if (waploadedUrl) {
+                const wlResult = await crawlWaploadedPage(waploadedUrl);
+                if (wlResult) {
+                  sources.push({
+                    provider: name, url: wlResult.url,
+                    label: `${post.title} · waploaded`,
+                    quality: wlResult.quality || extractQuality(wlResult.url, mdHtml),
+                    size: wlResult.size || mdSize, isEmbed: false, locked: true,
+                    note: "External link (resolved from waploaded.com)",
+                  });
+                } else {
+                  // Add waploaded page URL as fallback
+                  sources.push({
+                    provider: name, url: waploadedUrl,
+                    label: `${post.title} · waploaded`,
+                    quality: extractQuality(waploadedUrl, mdHtml),
+                    size: mdSize, isEmbed: false, locked: true,
+                    note: "External link (waploaded.com)",
+                  });
+                }
+              }
+
               // Update size if we got a better one from meetdownload
               if (mdSize && sources[0]) sources[0].size = mdSize;
             } catch { /* meetdownload blocked */ }

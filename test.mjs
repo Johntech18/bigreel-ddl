@@ -276,8 +276,10 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
     check("mynetnaija finds post via WP REST API", m.sources.length > 0);
     check("mynetnaija extracts meetdownload links",
       m.sources.some((s) => /meetdownload\.com/.test(s.url)));
-    check("mynetnaija all sources are locked (needs browser)",
-      m.sources.every((s) => s.locked === true));
+    check("mynetnaija resolves direct links from kissorgrab",
+      m.sources.some((s) => /kissorgrab\.com/.test(s.url) && !s.locked));
+    check("mynetnaija extracts waploaded links",
+      m.sources.some((s) => /waploaded/.test(s.label || s.url)));
     check("mynetnaija sources carry file size",
       m.sources.some((s) => s.size !== null && s.size !== undefined));
   }
