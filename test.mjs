@@ -9,6 +9,7 @@ import { a111477 } from "./scrapers/a111477.mjs";
 import { cinextream } from "./scrapers/cinextream.mjs";
 import { pahe, resolveToken } from "./scrapers/pahe.mjs";
 import { movierulz } from "./scrapers/movierulz.mjs";
+import { mynetnaija } from "./scrapers/mynetnaija.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -260,6 +261,23 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
   } else {
     console.log(`INFO  movierulz tv: ${e.sources.length} sources (locked: ${e.sources.filter((s) => s.locked).length})`);
     check("movierulz tv finds season-pack magnets", e.sources.some((s) => s.url.startsWith("magnet:")));
+  }
+}
+
+{
+  // mynetnaija: WordPress site with WP REST API. Movies only, downloads via
+  // meetdownload.com → 7up.kissorgrab.com chain (all locked, needs browser).
+  // The /episode-download/ pages may be Cloudflare-protected (404 for bots).
+  const m = await mynetnaija.scrapeMovie({ title: "Ghost In The Cell", year: "2026" });
+  if (m.error) {
+    skip("mynetnaija finds post and extracts links", m.error);
+  } else {
+    console.log(`INFO  mynetnaija: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("mynetnaija finds post via WP REST API", m.sources.length > 0);
+    check("mynetnaija all sources are locked (needs browser)",
+      m.sources.every((s) => s.locked === true));
+    check("mynetnaija source URLs are valid",
+      m.sources.every((s) => /^https?:\/\//.test(s.url)));
   }
 }
 

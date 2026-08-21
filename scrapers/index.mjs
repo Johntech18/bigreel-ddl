@@ -13,6 +13,7 @@ import { makeA111477, a111477 as defaultA111477 } from "./a111477.mjs";
 import { makeCinextream, cinextream as defaultCinextream } from "./cinextream.mjs";
 import { makePahe, pahe as defaultPahe } from "./pahe.mjs";
 import { makeMovierulz, movierulz as defaultMovierulz } from "./movierulz.mjs";
+import { makeMynetnaija, mynetnaija as defaultMynetnaija } from "./mynetnaija.mjs";
 import { normalizeTitle } from "./base.mjs";
 import { getDirectLinks } from "../nxsha.mjs";
 
@@ -31,6 +32,7 @@ const a111477Domains = envDomains("A111477_DOMAINS");
 const cinextreamDomains = envDomains("CINEXTREAM_DOMAINS");
 const paheDomains = envDomains("PAHE_DOMAINS");
 const movierulzDomains = envDomains("MOVIERULZ_DOMAINS");
+const mynetnaijaDomain = process.env.MYNETNAIJA_DOMAIN || null;
 
 export const registry = {
   filmyfly: filmyflyDomains ? makeFilmyfly({ domains: filmyflyDomains }) : defaultFilmyfly,
@@ -39,6 +41,7 @@ export const registry = {
   cinextream: cinextreamDomains ? makeCinextream({ domains: cinextreamDomains }) : defaultCinextream,
   pahe: paheDomains ? makePahe({ domains: paheDomains }) : defaultPahe,
   movierulz: movierulzDomains ? makeMovierulz({ domains: movierulzDomains }) : defaultMovierulz,
+  mynetnaija: mynetnaijaDomain ? makeMynetnaija({ domain: mynetnaijaDomain }) : defaultMynetnaija,
 };
 
 export function providerNames() {
@@ -55,10 +58,11 @@ const FRIENDLY = {
   a111477: "Index Server",
   filmyfly: "Swift Server",
   hdhub4u: "Nexus Server",
+  mynetnaija: "NetNaija Server",
 };
 
 // UI ordering: Elite (pahe) leads the server list, then the rest.
-const PROVIDER_ORDER = ["pahe", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u"];
+const PROVIDER_ORDER = ["pahe", "movierulz", "cinextream", "a111477", "filmyfly", "hdhub4u", "mynetnaija"];
 
 export function friendlyName(provider) {
   return FRIENDLY[provider] || provider;
