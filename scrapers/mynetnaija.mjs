@@ -175,7 +175,7 @@ export function makeMynetnaija({
               label: `${post.title} · meetdownload`,
               quality: extractQuality(dlHtml, meetdownloadUrl),
               size: fileSize, isEmbed: false, locked: true,
-              note: "meetdownload.com (needs browser)",
+              note: "External link (not a direct link and there's no ads)",
             });
             // Try to fetch meetdownload page for direct link + exact size
             try {
@@ -187,8 +187,8 @@ export function makeMynetnaija({
                   provider: name, url: directUrl,
                   label: `${post.title} · direct`,
                   quality: extractQuality(directUrl, mdHtml),
-                  size: mdSize, isEmbed: false, locked: true,
-                  note: "7up.kissorgrab.com (needs browser)",
+                  size: mdSize, isEmbed: false, locked: false,
+                  note: "Direct Link resolved and found - file hosted on " + new URL(directUrl).hostname,
                 });
               }
               // Update size if we got a better one from meetdownload
@@ -205,7 +205,7 @@ export function makeMynetnaija({
         provider: name, url: post.url,
         label: `${post.title}`, quality: "HD", size: null,
         isEmbed: false, locked: true,
-        note: "mynetnaija.ng (needs browser)",
+        note: "External Link (You will be taken to an external site to download)",
       });
     }
 

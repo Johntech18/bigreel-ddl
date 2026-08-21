@@ -242,7 +242,7 @@ export function makeMovierulz({
         host: "Torrent",
         isEmbed: false,
         locked: false,
-        note: "magnet link - open in a torrent client to download",
+        note: "This is a magnet link - open in a torrent client to download",
       });
     }
     // Streaming mirrors: <a href="https://host/..." class="stream-link-btn"><span>▶</span><span>Streamlare</span></a>

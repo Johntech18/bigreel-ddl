@@ -146,7 +146,7 @@ export function makePahe({
       if (!dest) continue;
       s.url = dest;
       s.locked = false;
-      s.note = `resolved from pahe's ad-locker shortener - file hosted on ${new URL(dest).hostname}`;
+      s.note = `Direct Link resolved and found - file hosted on ${new URL(dest).hostname}`;
     }
     return sources;
   }
