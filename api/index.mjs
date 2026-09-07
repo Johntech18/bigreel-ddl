@@ -9,6 +9,6 @@
 // The in-memory cache lives per serverless instance, so cold starts re-scrape;
 // environment variables (TMDB_API_KEY etc.) must be set in the Vercel project.
 
-import handleRequest from "../app.mjs";
+import handleRequest from "../lib/app.mjs";
 
 export default handleRequest;
