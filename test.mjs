@@ -11,6 +11,7 @@ import { pahe, resolveToken } from "./scrapers/pahe.mjs";
 import { movierulz } from "./scrapers/movierulz.mjs";
 import { mynetnaija } from "./scrapers/mynetnaija.mjs";
 import { naijaprey } from "./scrapers/naijaprey.mjs";
+import { movie02 } from "./scrapers/02movie.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -309,6 +310,26 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
   } else {
     check("naijaprey series finds episode links",
       e.sources.length > 0 && e.sources.some((s) => /wildshare\.net/.test(s.url)));
+  }
+}
+
+{
+  // 02movie: TMDB-ID-based encrypted API + download server. Movies only.
+  const m = await movie02.scrapeMovie({ tmdbId: "533535", title: "Deadpool & Wolverine" });
+  if (m.error) {
+    skip("02movie movie resolves links", m.error);
+  } else {
+    console.log(`INFO  02movie: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("02movie movie finds direct links", m.sources.length > 0 && m.sources[0].url);
+    check("02movie movie sources carry quality",
+      m.sources.some((s) => s.quality !== undefined && s.quality !== null));
+  }
+  // TV test: Breaking Bad S01E01
+  const e = await movie02.scrapeEpisode({ tmdbId: "1396", season: "1", episode: "1", title: "Breaking Bad" });
+  if (e.error) {
+    skip("02movie tv resolves episode", e.error);
+  } else {
+    check("02movie tv finds episode links", e.sources.length > 0);
   }
 }
 
