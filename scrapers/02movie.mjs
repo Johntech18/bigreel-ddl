@@ -156,7 +156,7 @@ async function verifyDownload(url) {
     const res = await fetch(url, {
       method: "HEAD",
       headers: { "User-Agent": UA },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
       redirect: "follow",
     });
     return res.status < 400 || res.status === 405;
@@ -206,7 +206,12 @@ export function make02movie({
     if (!tmdbId) {
       return { provider: name, error: "02movie requires a TMDB ID", sources: [] };
     }
-    const { all, errors } = await fetchAllLinks(base, tmdbId, "movie");
+    let all, errors;
+    try {
+      ({ all, errors } = await fetchAllLinks(base, tmdbId, "movie"));
+    } catch (e) {
+      return { provider: name, error: e.message, sources: [] };
+    }
 
     // Verify links in parallel, skip unverifiable
     const results = await Promise.allSettled(
@@ -232,18 +237,20 @@ export function make02movie({
       note: `Direct link (server ${opt.server})`,
     }));
 
-    // If nothing verified, add first link as locked
-    if (!sources.length && all.length) {
-      const first = all[0];
-      sources.push({
-        provider: name, url: first.url,
-        label: `${title || "Movie"} · ${first.name || "02movie"} · ${first.quality}`,
-        quality: first.quality || "HD",
-        size: first.size || null,
-        format: first.format || "MP4",
-        isEmbed: false, locked: true,
-        note: "Link found but could not verify availability",
-      });
+    // Add unverified links as locked (CDN domains often block HEAD requests)
+    const verifiedUrls = new Set(verified.map((o) => o.url));
+    for (const opt of all) {
+      if (!verifiedUrls.has(opt.url)) {
+        sources.push({
+          provider: name, url: opt.url,
+          label: `${title || "Movie"} · ${opt.name || "02movie"} · ${opt.quality}`,
+          quality: opt.quality || "HD",
+          size: opt.size || null,
+          format: opt.format || "MP4",
+          isEmbed: false, locked: true,
+          note: `Direct link (server ${opt.server}) — unverified`,
+        });
+      }
     }
 
     return { provider: name, sources, errors };
@@ -255,7 +262,12 @@ export function make02movie({
     }
     const s = season || "1";
     const e = episode || "1";
-    const { all, errors } = await fetchAllLinks(base, tmdbId, "tv", s, e);
+    let all, errors;
+    try {
+      ({ all, errors } = await fetchAllLinks(base, tmdbId, "tv", s, e));
+    } catch (e2) {
+      return { provider: name, error: e2.message, sources: [] };
+    }
 
     const results = await Promise.allSettled(
       all.map((opt) =>
@@ -280,17 +292,19 @@ export function make02movie({
       note: `Direct link (server ${opt.server})`,
     }));
 
-    if (!sources.length && all.length) {
-      const first = all[0];
-      sources.push({
-        provider: name, url: first.url,
-        label: `${title || "TV"} S${s}E${e} · ${first.name || "02movie"} · ${first.quality}`,
-        quality: first.quality || "HD",
-        size: first.size || null,
-        format: first.format || "MP4",
-        isEmbed: false, locked: true,
-        note: "Link found but could not verify availability",
-      });
+    const verifiedUrls = new Set(verified.map((o) => o.url));
+    for (const opt of all) {
+      if (!verifiedUrls.has(opt.url)) {
+        sources.push({
+          provider: name, url: opt.url,
+          label: `${title || "TV"} S${s}E${e} · ${opt.name || "02movie"} · ${opt.quality}`,
+          quality: opt.quality || "HD",
+          size: opt.size || null,
+          format: opt.format || "MP4",
+          isEmbed: false, locked: true,
+          note: `Direct link (server ${opt.server}) — unverified`,
+        });
+      }
     }
 
     return { provider: name, sources, errors };
