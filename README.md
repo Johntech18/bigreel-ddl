@@ -26,6 +26,9 @@ A zero-dependency Node.js server that aggregates **direct download links** for m
 node server.mjs          # Node 18+ required, no npm install needed
 ```
 
+> `server.mjs` re-exports the shared handler in `lib/app.mjs` — the same
+> handler Vercel's `api/index.mjs` uses, so local and deployed behavior match.
+
 Then open:
 
 - `http://localhost:3000/dl/movie/969681` - Spider-Man: Brand New Day
