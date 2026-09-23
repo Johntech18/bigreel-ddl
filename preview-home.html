@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<meta name="theme-color" content="#F4F2EA"/>
+<link rel="icon" type="image/png" href="https://i.postimg.cc/3RHNvYbT/logo-new.png"/>
+<meta name="description" content="BIGREEL Downloader - direct download links for movies and TV shows, by TMDB id."/>
+<meta property="og:site_name" content="BIGREEL Downloader"/>
+<meta property="og:title" content="Home - BIGREEL Downloader"/>
+<meta property="og:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
+<meta property="og:type" content="website"/>
+<meta property="og:image" content="https://i.postimg.cc/3RHNvYbT/logo-new.png"/>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Home - BIGREEL Downloader"/>
+<meta name="twitter:description" content="Direct download links for movies and TV shows, aggregated from multiple servers."/>
+<meta name="twitter:image" content="https://i.postimg.cc/3RHNvYbT/logo-new.png"/>
+<title>Home - BIGREEL Downloader</title>
+<style>
+  /* --- Manifest tokens (DESIGN.md) --- */
+  :root { color-scheme: light; --paper:#F4F2EA; --bar:#E3EBD9; --ink:#1A211B; --stamp:#C2401F; --hold:#A06A12; --mute:#5A6157; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:"IBM Plex Sans", system-ui, sans-serif; min-height:100vh; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px 16px 80px; }
+  a { color: var(--ink); }
+  header { display:flex; align-items:center; gap:12px; margin: 10px 0 26px; }
+  .logo { width:42px; height:42px; border-radius:12px; object-fit:cover; box-shadow:0 2px 8px rgba(26,33,27,.25); }
+  h1 { font-family:Anton, sans-serif; font-size:26px; margin:0; letter-spacing:.04em; font-weight:400; }
+  .sub { color:var(--mute); font-size:12.5px; margin-top:3px; font-family:"IBM Plex Mono", monospace; }
+  :focus-visible { outline:3px solid var(--stamp); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
+  .hero { text-align:center; padding: 42px 0 26px; }
+  .searchbar { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .searchbar input { background:#0d1428; border:1px solid var(--border); border-radius:12px; padding:13px 16px; color:var(--text); font-size:15px; flex:0 1 300px; min-width:200px; outline:none; }
+  .searchbar input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(33,150,243,.2); }
+  .searchbar input.num { flex:0 0 64px; min-width:64px; text-align:center; }
+  .searchbar button { background:var(--stamp); border:0; color:#fff; font-family:Anton, sans-serif; font-weight:400; letter-spacing:.08em; font-size:15px; padding:0 26px; border-radius:0; cursor:pointer; transition:filter .15s; }
+  .searchbar button:hover { filter:brightness(1.12); }
+  .quicklinks { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:20px; }
+  .quicklinks a { color:var(--muted); text-decoration:none; font-size:12.5px; border:1px solid var(--border); background:var(--card); padding:8px 14px; border-radius:999px; transition:all .15s; }
+  .quicklinks a:hover { color:var(--accent-2); border-color:var(--accent); }
+  .quicklinks code { color:var(--ink); }
+  .section { margin-top:38px; }
+  .section h2 { font-size:17px; margin:0 0 4px; }
+  .section .lead { color:var(--mute); font-size:13px; margin:0 0 16px; }
+  .badge { font-family:"IBM Plex Mono", monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.08em; padding:2px 8px; border-radius:0; background:transparent; color:var(--mute); border:1px solid var(--mute); }
+  .badge.err { color:var(--stamp); border-color:var(--stamp); }
+  .badge.srcself { color:var(--mute); }
+  .badge.srctx { color:var(--mute); border-style:dashed; }
+  .empty { color:var(--mute); font-size:13px; padding:12px 16px; border-top:1px solid rgba(26,33,27,.08); }
+  .loading, .err { display:flex; justify-content:center; align-items:center; min-height:200px; color:var(--mute); font-size:14px; font-family:"IBM Plex Mono", monospace; }
+  .err { color:var(--stamp); }
+  .disclaimer { margin-top:48px; font-size:10.5px; line-height:1.7; color:var(--mute); text-align:center; font-family:"IBM Plex Mono", monospace; }
+  /* Manifest extras: hero, sequence, carriers table */
+  .hero { text-align:center; padding: 42px 0 26px; }
+  .hero h2 { font-family:Anton, sans-serif; font-size:clamp(28px,6vw,46px); margin:0 0 12px; letter-spacing:.02em; line-height:1.15; font-weight:400; }
+  .hero p { color:var(--mute); font-size:15px; line-height:1.7; max-width:620px; margin:0 auto 26px; }
+  .searchbar input { background:#fff; border:1px solid var(--ink); border-radius:0; padding:13px 16px; color:var(--ink); font-size:15px; flex:0 1 300px; min-width:200px; outline:none; font-family:"IBM Plex Mono", monospace; }
+  .searchbar input:focus { border-color:var(--stamp); box-shadow:0 0 0 3px rgba(194,64,31,.15); }
+  .searchbar input.num { flex:0 0 64px; min-width:64px; text-align:center; }
+  .quicklinks { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:20px; }
+  .quicklinks a { color:var(--mute); text-decoration:none; font-size:12.5px; border:1px solid var(--mute); background:transparent; padding:8px 14px; border-radius:0; font-family:"IBM Plex Mono", monospace; }
+  .quicklinks a:hover { color:var(--ink); border-color:var(--ink); }
+  .steps { display:flex; gap:14px; flex-wrap:wrap; margin-top:16px; }
+  .step { flex:1 1 200px; border:1px solid var(--ink); padding:16px; font-family:"IBM Plex Mono", monospace; font-size:13px; background:#FBFAF6; }
+  .stepnum { font-family:Anton, sans-serif; font-size:20px; color:var(--stamp); display:block; margin-bottom:6px; }
+  .manifest { border:2px solid var(--ink); background:#FBFAF6; }
+  .mrow { display:flex; gap:18px; padding:12px 16px; border-bottom:1px dashed rgba(90,97,87,.4); align-items:baseline; }
+  .mrow:nth-child(odd) { background:var(--bar); }
+  .mname { font-family:Anton, sans-serif; font-size:14px; letter-spacing:.06em; flex:0 0 110px; }
+  .mdesc { font-size:12.5px; color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  
+  <header><img class="logo" src="https://i.postimg.cc/3RHNvYbT/logo-new.png" alt="BIGREEL"/><div><h1>BIGREEL Downloader</h1><div class="sub">DIRECT DOWNLOAD MANIFEST</div></div></header>
+  <section class="hero">
+    <h2>FILE A REQUEST.<br/>PULL THE FILE.</h2>
+    <p>Hand us a title - or a TMDB id - and we return the manifest: every quality and copy across all carriers, direct links stamped and ready.</p>
+    <form method="get" action="/find" class="searchbar">
+      <input type="text" name="q" placeholder="Movie or show name" autofocus/>
+      <input type="number" name="season" class="num" placeholder="S" min="1" aria-label="Season"/>
+      <input type="number" name="episode" class="num" placeholder="E" min="1" aria-label="Episode"/>
+      <button type="submit">Find Links</button>
+    </form>
+    <div class="quicklinks">
+      <a href="/dl/movie/533535">Deadpool &amp; Wolverine - movie</a>
+      <a href="/dl/tv/1396/1/1">Breaking Bad S01E01</a>
+    </div>
+  </section>
+  <section class="section">
+    <h2>How a request moves</h2>
+    <div class="steps">
+      <div class="step"><span class="stepnum">01</span> Search the title</div>
+      <div class="step"><span class="stepnum">02</span> Pick an item</div>
+      <div class="step"><span class="stepnum">03</span> Pull the file</div>
+    </div>
+  </section>
+  <section class="section">
+    <h2>Carriers on file</h2>
+    <p class="lead">Every request is tendered to all carriers at once. Results are merged, best first.</p>
+    <div class="manifest">
+      <div class="mrow"><span class="mname">ELITE</span><span class="mdesc">Quality packs 480p to 2160p, x264/x265, resolved file-host links</span></div>
+      <div class="mrow"><span class="mname">NAIJA PLUS</span><span class="mdesc">Naija movies and series, direct links auto-resolved</span></div>
+      <div class="mrow"><span class="mname">PRIME</span><span class="mdesc">Rich per-file metadata: 4K, H.265, Atmos, TrueHD</span></div>
+      <div class="mrow"><span class="mname">NAIJA</span><span class="mdesc">Naija movies via meetdownload, direct file links</span></div>
+      <div class="mrow"><span class="mname">INDIAN</span><span class="mdesc">Torrent magnets and streaming mirrors, big Indian library</span></div>
+      <div class="mrow"><span class="mname">INDEX</span><span class="mdesc">Raw file indexer, direct .mkv/.mp4 rows with size and quality</span></div>
+      <div class="mrow"><span class="mname">SWIFT</span><span class="mdesc">Multi-mirror host chains, fast direct links</span></div>
+      <div class="mrow"><span class="mname">NEXUS</span><span class="mdesc">WordPress mirrors, quality-tagged file links</span></div>
+    </div>
+  </section>
+  <div class="disclaimer">BIGREEL Downloader is an indexer: it aggregates links to content hosted by third parties. It does not host or store any media files. Only download content you have the rights to.</div>
+  </main>
+</body>
+</html>
