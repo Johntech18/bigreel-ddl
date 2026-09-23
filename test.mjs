@@ -12,6 +12,7 @@ import { movierulz } from "./scrapers/movierulz.mjs";
 import { mynetnaija } from "./scrapers/mynetnaija.mjs";
 import { naijaprey } from "./scrapers/naijaprey.mjs";
 import { movie02 } from "./scrapers/02movie.mjs";
+import { thenkiri } from "./scrapers/thenkiri.mjs";
 import { scoreCandidate, mergeProviders } from "./scrapers/index.mjs";
 import { resolveFilesdl } from "./scrapers/filesdl.mjs";
 import http from "node:http";
@@ -330,6 +331,38 @@ const SPIDER = { title: "Spider-Man: Brand New Day", year: "2026" };
     skip("02movie tv resolves episode", e.error);
   } else {
     check("02movie tv finds episode links", e.sources.length > 0);
+  }
+}
+
+{
+  // thenkiri: WordPress site (WP REST API) whose files live on downloadwella.com
+  // (XFileSharing). Search + post link extraction are reliable; the direct-link
+  // generation POST has a per-IP quota, so exhausted-quota runs report locked
+  // links - SKIP those rather than failing the suite.
+  const m = await thenkiri.scrapeMovie({ title: "Deadpool and Wolverine", year: "2024" });
+  if (m.error) {
+    skip("thenkiri finds post and extracts links", m.error);
+  } else {
+    console.log(`INFO  thenkiri: ${m.sources.length} sources (locked: ${m.sources.filter((s) => s.locked).length})`);
+    check("thenkiri finds post via WP REST API", m.sources.length > 0);
+    check("thenkiri extracts downloadwella links",
+      m.sources.every((s) => /downloadwella\.com/.test(s.url)));
+    check("thenkiri sources carry file size",
+      m.sources.some((s) => s.size !== null && s.size !== undefined));
+    const direct = m.sources.filter((s) => !s.locked);
+    if (direct.length) {
+      check("thenkiri resolves signed direct links",
+        direct.every((s) => /[a-z0-9-]+\.downloadwella\.com\/d\//.test(s.url)));
+    } else {
+      skip("thenkiri resolves signed direct links", "per-IP link quota exhausted");
+    }
+  }
+  const e = await thenkiri.scrapeEpisode({ title: "Your Friendly Neighborhood Spider-Man", season: 1, episode: 3 });
+  if (e.error) {
+    skip("thenkiri finds series episodes", e.error);
+  } else {
+    check("thenkiri episode filter picks the right file",
+      e.sources.length > 0 && e.sources.some((s) => /S01E03/i.test(s.label + " " + s.url)));
   }
 }
 

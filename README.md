@@ -15,6 +15,7 @@ A zero-dependency Node.js server that aggregates **direct download links** for m
 | **Index Server** | a111477 | Raw file indexer · direct .mkv/.mp4 rows |
 | **Swift Server** | filmyfly | Multi-mirror host chains · fast direct links |
 | **Nexus Server** | hdhub4u | WordPress mirrors · quality-tagged file links |
+| **Naija Plus Server** | thenkiri | Naija library (movies + TV series) · XFileSharing file host, direct links auto-resolved |
 | (nxsha providers) | nxsha.app proxy | Partner sources merged in, tagged `source: "nxsha"` |
 
 `/dl/*` and `/api/dl/*` now fetch the **merged** result: self-hosted scrapers plus nxsha, ranked Elite-first.
@@ -89,6 +90,7 @@ scrapers/
   cinextream.mjs  # ddl.cinextream.cc TMDB-id API: wasm-decrypted responses over the same indexer
   pahe.mjs        # pahe.ink WordPress library: metadata + token-decode of ad-locker shorteners
   movierulz.mjs   # 5movierulz.watch Indian site: category-page discovery -> torrent magnets + streaming mirrors
+  thenkiri.mjs    # thenkiri.com WP REST API -> downloadwella.com (XFileSharing) op=download2 POST resolution
   index.mjs       # registry + unified scrapeMovie/scrapeEpisode API
 ```
 
@@ -334,6 +336,7 @@ Scrapes hit live source sites and can take 10–30 s, so `maxDuration` is set to
 | `CINEXTREAM_DOMAINS` | `ddl.cinextream.cc` | Domain(s) for the cinextream API provider (same a.111477.xyz files, TMDB-id lookup) |
 | `PAHE_DOMAINS` | `pahe.ink` | Domain(s) for the pahe provider; shortener links are auto-unlocked via token decode (up to 12 per scrape) |
 | `MOVIERULZ_DOMAINS` | `www.5movierulz.watch` | Domain(s) for the Indian server (movierulz); search is unavailable server-side so discovery walks the site's category pages |
+| `THENKIRI_DOMAIN` | `thenkiri.com` | Domain for the Naija Plus server (thenkiri); direct links resolved from downloadwella with a per-IP link quota (paced, then cached 30 min) |
 
 ## How nxsha.app works (reverse-engineered)
 
